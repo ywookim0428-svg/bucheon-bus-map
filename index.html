@@ -165,6 +165,8 @@ canvas.drag{cursor:grabbing}
 .zoom .zstyle{font-size:11px;font-weight:800;line-height:1.1;padding:0}
 .follow .jihu{display:grid;grid-template-columns:1fr 1fr;gap:6px}
 .follow .jihu button.all{grid-column:1/-1;background:#8fd3ff;color:#123}
+.follow .jihu button.all.off{background:#ff8a5c;color:#fff}
+.follow .jihu button.all.wait{background:var(--soft);color:var(--muted)}
 .follow .jihu button{flex:1;border:0;border-radius:10px;padding:9px 8px;font-size:13px;font-weight:800;background:#ffd84d;color:#3a2715}
 .follow .jihu button.off{background:#ff8a5c;color:#fff}
 .follow .jihu button.wait{background:var(--soft);color:var(--muted)}
@@ -2849,6 +2851,7 @@ function followStep(){
     const cand = L && buses.filter(x => x.r === L.r && x.di === L.di && !!x.real !== L.real)
       .sort((p, q) => Math.hypot(p.x - L.x, p.y - L.y) - Math.hypot(q.x - L.x, q.y - L.y))[0];
     if (cand && !L.ended) { // 시간을 건너뛰면 멀리 있을 수 있어 거리 제한은 두지 않는다
+      for (const m of riders(S.follow)) m.ride = cand.id; // 타고 있던 가족도 같이 옮겨 탄다
       S.follow = cand.id; b = cand;
       toast(cand.real ? '실시간 위치가 들어와서 실제 버스로 이어 따라가요' : '실시간 위치가 끊겨서 추정 위치로 이어 따라가요');
       paintFollow(true);
@@ -3009,7 +3012,8 @@ const famSz = m => Math.max(11, Math.min(20, V.k * 22)) * m.sc;
 const riders = id => FAM.filter(m => m.ride && m.ride === id);
 function famSay(m, t){ m.text = t; m.textT = performance.now(); }
 function famBoard(list, id){
-  const v = vehOf(id); if (!v || !list.length) return;
+  const v = vehOf(id); if (!list.length) return;
+  if (!v) { toast('버스 위치를 다시 받는 중이에요. 잠깐 뒤에 다시 눌러 주세요'); return; }
   for (const m of list) { m.ride = id; m.off = false; m.lost = 0; m.text = ''; }
   famSay(list[0], list.length > 1 ? '다 같이 출발~!' : '출발~!'); // 말풍선은 한 사람만 (겹치지 않게)
   sfx('yay');
@@ -3021,14 +3025,15 @@ function famAlight(m, v, why, i = 0){
   const at = v && v.at, off = [[9, 9], [-9, 11], [13, -6], [-13, -4]][i % 4];
   if (v) { m.x = (at ? at.x : v.x) + off[0]; m.y = (at ? at.y : v.y) + off[1]; m.where = (v.atName || v.nextName || '') || m.where; }
   m.ride = null; m.off = false; famSave(m);
-  famSay(m, why || (v && v.atName ? v.atName + ' 도착!' : '내렸어요!'));
+  if (i === 0) famSay(m, why || (v && v.atName ? v.atName + ' 도착!' : '내렸어요!')); else m.text = ''; // 같이 내리면 말풍선은 한 사람만
 }
 function famStep(){
   const now = performance.now(), done = new Map();
   for (const m of FAM) {
     if (!m.ride) continue;
     const v = vehOf(m.ride);
-    if (!v) { // 탈것이 사라짐(종점·실시간 끊김): 3초 기다렸다가 그 자리에 내린다
+    if (!v) { // 탈것이 사라짐(종점·실시간 끊김): 따라가는 버스가 잠깐 안 보이는 거면 기다리고, 아니면 3초 뒤 그 자리에 내린다
+      if (m.ride === S.follow && !m.ride.startsWith('tr:') && followLast && !followLast.ended) { m.lost = 0; m.x = followLast.x; m.y = followLast.y; continue; }
       if (!m.lost) m.lost = now; else if (now - m.lost > 3000) { m.lost = 0; famAlight(m, null, '종점이야! 내렸어요'); sfx('yay'); paintFollow(true); }
       continue;
     }
@@ -3051,13 +3056,19 @@ function jihuCard(box){ // 따라가기 카드 아래 버튼: 가족마다 태�
   const btn = m => m.ride === S.follow
     ? (m.off ? `<button class="wait" data-fam="stay:${m.key}">${m.emo} ${m.name} 다음에 내려요… (취소)</button>` : `<button class="off" data-fam="off:${m.key}">${m.emo} ${m.name} 내릴래요!</button>`)
     : `<button data-fam="on:${m.key}">${m.emo} ${m.name} 태우기${m.ride ? ' (갈아타기)' : ''}</button>`;
-  box.insertAdjacentHTML('beforeend', `<div class="jihu">${FAM.map(btn).join('')}${out.length > 1 ? `<button class="all" data-fam="all">👨‍👩‍👦‍👦 ${out.length === FAM.length ? '다 같이' : '모두'} 태우기</button>` : ''}</div>`);
+  const aboard = riders(S.follow), staying = aboard.filter(m => !m.off);
+  const allOn = out.length > 1 ? `<button class="all" data-fam="all">👨‍👩‍👦‍👦 ${out.length === FAM.length ? '다 같이' : '모두'} 태우기</button>` : '';
+  const allOff = staying.length > 1 ? `<button class="all off" data-fam="alloff">👨‍👩‍👦‍👦 ${staying.length === FAM.length ? '다 같이' : '모두'} 내릴래요!</button>`
+    : aboard.length > 1 && !staying.length ? '<button class="all wait" data-fam="allstay">👨‍👩‍👦‍👦 다 같이 다음에 내려요… (취소)</button>' : '';
+  box.insertAdjacentHTML('beforeend', `<div class="jihu">${FAM.map(btn).join('')}${allOn}${allOff}</div>`);
 }
 $('#follow').addEventListener('pointerdown', e => { // 카드가 자주 다시 그려져서 누르는 순간에 바로 처리
   const b = e.target.closest && e.target.closest('[data-fam]'); if (!b) return;
   e.preventDefault(); actx();
   const [act, key] = b.dataset.fam.split(':'), m = FAM.find(x => x.key === key);
   if (act === 'all') famBoard(FAM.filter(x => x.ride !== S.follow), S.follow);
+  else if (act === 'alloff') { const now = performance.now(), l = riders(S.follow); l.forEach(x => { x.off = true; x.offT = now; x.text = ''; }); if (l[0]) famSay(l[0], '다 같이 다음에 내려요!'); sfx('bell'); paintFollow(true); }
+  else if (act === 'allstay') { const l = riders(S.follow); l.forEach(x => { x.off = false; x.text = ''; }); if (l[0]) famSay(l[0], '다 같이 더 갈래요!'); paintFollow(true); }
   else if (act === 'on') famBoard([m], S.follow);
   else if (act === 'off') { m.off = true; m.offT = performance.now(); famSay(m, '다음에 내릴게요!'); sfx('bell'); paintFollow(true); }
   else { m.off = false; famSay(m, '더 갈래요!'); paintFollow(true); }

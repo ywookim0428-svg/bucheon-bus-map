@@ -1718,7 +1718,7 @@ function landSection(q){
   return `<button class="sec" data-sec="land" aria-expanded="${!!open}"><span>${q ? '랜드마크 검색 결과' : '부천 랜드마크'} · ${ls.length}</span><i>${open ? '▾' : '▸'}</i></button>
     ${open ? `<div class="places lands">${ls.map(m => `<button class="place land" data-land="${LANDS.indexOf(m)}"><i>${m[5]}</i>${esc(m[0])}</button>`).join('')}</div>` : ''}`;
 }
-function flyTo(x, y, k){ zoomTo = null; S.follow = null; V.cx = x; V.cy = y; V.k = k; dirty = true; }
+function flyTo(x, y, k){ zoomTo = null; glide = null; S.follow = null; V.cx = x; V.cy = y; V.k = k; dirty = true; }
 function fitOkgil(){ zoomTo = null; S.follow = null; V.cx = OK.center[0]; V.cy = OK.center[1]; V.k = Math.max(0.32, Math.min(W, H) / 2400); dirty = true; }
 
 /* 하루 동안 시간대별 운행 버스 수 (10분 간격) */
@@ -2375,23 +2375,67 @@ function drawBusIcon(el, outbound){
 /* ---------- 상호작용 ---------- */
 // 마우스 위치는 캔버스의 실제 화면 위치로 계산한다 (offsetX는 틀·확대된 화면에서 어긋날 수 있다)
 const mx = e => e.clientX - cv.getBoundingClientRect().left, my = e => e.clientY - cv.getBoundingClientRect().top;
-const ptrs = new Map(); let drag = null, moved = false, pinch = null, clearT = 0;
-cv.addEventListener('pointerdown', e => { userMoved = true; cv.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, [mx(e), my(e)]); moved = false; drag = { x: mx(e), y: my(e), cx: V.cx, cy: V.cy };
-  if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; pinch = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), k: V.k }; } });
+// 손가락 조작: 한 손가락 = 끌어 옮기기(놓으면 미끄러짐), 두 손가락 = 벌리고 오므려 확대·축소하면서 같이 옮기기.
+// 손가락 두 개를 썼던 동작은 끝나도 '누르기'로 치지 않는다 (버스가 잘못 눌리지 않게).
+const ptrs = new Map(); let drag = null, moved = false, pinch = null, clearT = 0, multi = false, glide = null, trail = [];
+const two = () => { const v = [...ptrs.values()]; return [v[0], v[1]]; };
+function startPinch(){
+  const [a, b] = two(), mx0 = (a[0] + b[0]) / 2, my0 = (a[1] + b[1]) / 2;
+  pinch = { d: Math.max(20, Math.hypot(a[0] - b[0], a[1] - b[1])), k: V.k, ax: wx(mx0), ay: wy(my0) };
+}
+function startDrag(x, y){ drag = { x, y, cx: V.cx, cy: V.cy }; trail = [[x, y, performance.now()]]; }
+cv.addEventListener('pointerdown', e => {
+  userMoved = true; glide = null; zoomTo = null;
+  try { cv.setPointerCapture(e.pointerId); } catch (_) {}
+  if (e.isPrimary || e.pointerType === 'mouse') ptrs.clear(); // 새 손짓의 첫 손가락: 떼는 신호를 놓쳐 남아 있던 손가락 기록은 버린다
+  ptrs.set(e.pointerId, [mx(e), my(e)]);
+  if (ptrs.size === 1) { moved = false; multi = false; startDrag(mx(e), my(e)); }
+  else { multi = true; moved = true; startPinch(); }
+});
 cv.addEventListener('pointermove', e => {
   if (!ptrs.has(e.pointerId)) { hover(e); return; }
   ptrs.set(e.pointerId, [mx(e), my(e)]);
-  if (ptrs.size === 2 && pinch) { zoomTo = null; const [a, b] = [...ptrs.values()]; const d = Math.hypot(a[0] - b[0], a[1] - b[1]); zoomAt((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, pinch.k * d / pinch.d / V.k); moved = true; return; }
-  const dx = mx(e) - drag.x, dy = my(e) - drag.y;
-  // 손가락은 살짝 미끄러지기 쉬워서 터치는 더 넉넉하게 (그 정도 움직임으로 따라가기가 꺼지지 않게)
-  if (Math.abs(dx) + Math.abs(dy) > (e.pointerType === 'mouse' ? 4 : 14)) { moved = true; cv.classList.add('drag'); S.follow = null; }
-  if (moved && zoomTo) { zoomTo = null; drag = { x: mx(e), y: my(e), cx: V.cx, cy: V.cy }; return; }
-  if (moved) { V.cx = drag.cx - dx / V.k; V.cy = drag.cy - dy / V.k; dirty = true; }
+  if (ptrs.size >= 2 && pinch) {
+    const [a, b] = two(), d = Math.max(20, Math.hypot(a[0] - b[0], a[1] - b[1])), cx = (a[0] + b[0]) / 2, cy = (a[1] + b[1]) / 2;
+    V.k = Math.max(K_MIN, Math.min(K_MAX, pinch.k * d / pinch.d));
+    if (S.follow) { dirty = true; return; } // 버스를 따라가는 중이면 버스를 가운데 둔 채로 확대·축소만
+    V.cx = pinch.ax - (cx - W / 2) / V.k; V.cy = pinch.ay - (cy - H / 2) / V.k; dirty = true; // 손가락 사이 그 땅이 손가락을 따라온다
+    return;
+  }
+  if (!drag || ptrs.size !== 1) return;
+  const x = mx(e), y = my(e), dx = x - drag.x, dy = y - drag.y;
+  // 손가락은 살짝 미끄러지기 쉬워서 터치는 조금 넉넉하게 (그 정도로는 누르기로 친다)
+  if (!moved && Math.abs(dx) + Math.abs(dy) > (e.pointerType === 'mouse' ? 4 : 10)) { moved = true; cv.classList.add('drag'); S.follow = null; startDrag(x, y); return; }
+  if (moved) {
+    V.cx = drag.cx - dx / V.k; V.cy = drag.cy - dy / V.k; dirty = true;
+    const now = performance.now(); trail.push([x, y, now]); while (trail.length > 2 && now - trail[0][2] > 90) trail.shift();
+  }
 });
-const up = e => { ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch = null; cv.classList.remove('drag');
-  if (!moved && e.type === 'pointerup') click(mx(e), my(e), e.pointerType);
-  if (ptrs.size === 1) { const [p] = [...ptrs.values()]; drag = { x: p[0], y: p[1], cx: V.cx, cy: V.cy }; } };
-cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+const up = e => {
+  if (!ptrs.has(e.pointerId)) return;
+  ptrs.delete(e.pointerId); cv.classList.remove('drag');
+  if (ptrs.size >= 2) { startPinch(); return; }
+  pinch = null;
+  if (ptrs.size === 1) { const [p] = [...ptrs.values()]; startDrag(p[0], p[1]); return; } // 남은 손가락으로 이어서 옮기기 (튀지 않게 새 기준)
+  if (!moved && !multi && e.type === 'pointerup') { click(mx(e), my(e), e.pointerType); return; }
+  // 한 손가락으로 휙 밀고 놓으면 조금 더 미끄러진다
+  if (moved && !multi && trail.length > 1 && e.type === 'pointerup') {
+    const a = trail[0], b = trail[trail.length - 1], dt = Math.max(16, b[2] - a[2]);
+    if (performance.now() - b[2] < 80) { const vx = (b[0] - a[0]) / dt, vy = (b[1] - a[1]) / dt; if (Math.hypot(vx, vy) > 0.25) glide = { vx, vy, t: performance.now() }; }
+  }
+  drag = null;
+};
+cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up); cv.addEventListener('lostpointercapture', up);
+// 아이패드: 모든 손가락을 뗐는데 포인터 끝 신호가 빠지는 경우가 있어서, 터치가 하나도 안 남으면 기록을 비운다
+const touchGone = e => { if (e.touches.length) return; setTimeout(() => { if (ptrs.size) { ptrs.clear(); pinch = null; drag = null; cv.classList.remove('drag'); } }, 60); }; // 포인터 끝 신호를 먼저 처리할 틈을 준다 (누르기가 안 사라지게)
+cv.addEventListener('touchend', touchGone, { passive: true });
+function stepGlide(){ // 미끄러짐: 화면 픽셀 속도로 움직이고 점점 느려진다
+  if (!glide || ptrs.size) { glide = null; return; }
+  const now = performance.now(), dt = Math.min(40, now - glide.t); glide.t = now;
+  V.cx -= glide.vx * dt / V.k; V.cy -= glide.vy * dt / V.k; dirty = true;
+  const f = Math.pow(0.994, dt); glide.vx *= f; glide.vy *= f;
+  if (Math.hypot(glide.vx, glide.vy) < 0.02) glide = null;
+}
 // 휠·트랙패드: 줄 단위(파이어폭스)와 핀치(ctrl+휠)를 픽셀로 맞춘 뒤, 목표 배율로 부드럽게 다가간다
 const K_MIN = 0.015, K_MAX = 4;
 let zoomTo = null;
@@ -3167,7 +3211,7 @@ function loop(now){
   }
   // 한 프레임에서 오류가 나도 다음 프레임은 계속 돈다 (멈춰 버리지 않게)
   requestAnimationFrame(loop);
-  try { stepZoom(); tick(); drawFrame(); }
+  try { stepZoom(); stepGlide(); tick(); drawFrame(); }
   catch (err) { if (!loop.warned) { loop.warned = true; console.error(err); } dirty = true; }
 }
 

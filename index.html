@@ -91,9 +91,9 @@ canvas.drag{cursor:grabbing}
 .empty{padding:10px 8px;line-height:1.5}
 #h-top,#h-list{display:flex;flex-direction:column;gap:14px}
 .places{display:flex;flex-wrap:wrap;gap:6px}
-.sec{display:flex;justify-content:space-between;align-items:center;width:100%;border:0;background:none;padding:6px 0 2px;margin-bottom:-8px;font-size:11px;font-weight:800;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;cursor:pointer}
-.sec:hover{color:var(--ink)}
-.sec i{font-style:normal;font-size:12px}
+.sec{display:flex;justify-content:space-between;align-items:center;width:100%;min-height:46px;border:1px solid var(--line);border-radius:12px;background:var(--soft);padding:10px 14px;margin:2px 0 0;font-size:15px;font-weight:800;letter-spacing:.02em;color:var(--ink);cursor:pointer;font-family:inherit}
+.sec:hover,.sec:active{background:var(--line)}
+.sec i{font-style:normal;font-size:16px;color:var(--muted)}
 .place{display:flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--soft);border-radius:8px;padding:6px 10px;font-size:12px;font-weight:800}
 .place i{font-style:normal;color:var(--star)}
 .place.reg i{color:var(--region)}

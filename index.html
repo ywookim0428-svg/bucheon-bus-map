@@ -248,6 +248,17 @@ canvas.drag{cursor:grabbing}
 .kbd .k.next{outline:4px solid #3d8bfd;outline-offset:1px;transform:translateY(-3px);animation:nextk .7s infinite alternate;z-index:1}
 @keyframes nextk{to{outline-color:#9fd6ff}}
 .kbd .k.on{background:#3d8bfd;color:#fff}
+.kbd{position:relative;padding-bottom:32px}
+.kbd .k.press{transform:translateY(3px);border-bottom-width:1px;filter:brightness(.92)}
+.hands{position:absolute;left:0;top:0;width:100%;height:100%;overflow:visible;pointer-events:none;z-index:2;opacity:.7}
+.hands .palm{fill:#f2cda9;stroke:#d29a72;stroke-width:1.5}
+.hands .edge{stroke:#d29a72;stroke-linecap:round}
+.hands .skin{stroke:#f2cda9;stroke-linecap:round}
+.hands .fg.down .skin{stroke:#e2a77c}
+.hands .glow{stroke:#3d8bfd;stroke-linecap:round;opacity:0;transition:opacity .2s}
+.hands .fg.on .glow{opacity:.85}
+.hands .fg.bad .glow{stroke:#ff5a3c;opacity:1}
+.hands .nail{fill:#fff6ef}
 .kbd.nope{animation:shake .3s}
 .kbd .k{cursor:default}
 .kbd .k.bad{background:#ff6b4a!important;color:#fff}
@@ -261,6 +272,7 @@ canvas.drag{cursor:grabbing}
 .zoom .zstyle{font-size:11px;font-weight:800;line-height:1.1;padding:0}
 .follow .jihu{display:grid;grid-template-columns:1fr 1fr;gap:6px}
 .follow .jihu button.all{grid-column:1/-1;background:#8fd3ff;color:#123}
+.follow .jihu button.all.rel{background:#e3cdf5;color:#3a2160}
 .follow .jihu button.all.off{background:#ff8a5c;color:#fff}
 .follow .jihu button.all.wait{background:var(--soft);color:var(--muted)}
 .follow .jihu button{flex:1;border:0;border-radius:10px;padding:9px 8px;font-size:13px;font-weight:800;background:#ffd84d;color:#3a2715}
@@ -3206,9 +3218,9 @@ const FAM = [
   { key: 'dad', name: '아빠', subj: '아빠가', emo: '👨', shirt: '#4a6fa5', ring: '#4a6fa5', tag: '#a9c4ef', hat: null, bag: null, hair: '#151515', glasses: true, sc: 1.32, dx: -70,
     hi: ['아빠랑 가자!', '꽉 잡아!', '어디 가 볼까?', '출발~!', '지하철 탈까?'] },
   // 친척: 늘 자기 집 앞에서 시작한다 (어디서 내렸든 다시 켜면 집 앞으로 돌아간다). 근처에 온 버스·열차에만 태울 수 있다
-  { key: 'ywgma', name: '할머니', subj: '할머니가', top: '여월동 할머니는', emo: '👵', shirt: '#9b6bc9', ring: '#9b6bc9', tag: '#e3cdf5', hat: null, bag: '#b5651d', hair: '#d4d4d4', sc: 1.15, home: [1357, -827], where: '여월동 할머니네집',
+  { key: 'ywgma', name: '여월동 할머니', subj: '여월동 할머니가', top: '여월동 할머니는', emo: '👵', shirt: '#9b6bc9', ring: '#9b6bc9', tag: '#e3cdf5', hat: null, bag: '#b5651d', hair: '#d4d4d4', sc: 1.15, home: [1357, -827], where: '여월동 할머니네집',
     hi: ['우리 지후 왔구나!', '밥 먹고 가~', '아이고 예뻐라!', '할머니랑 버스 탈까?', '조심해서 다녀!'] },
-  { key: 'ywgpa', name: '할아버지', subj: '할아버지가', top: '여월동 할아버지는', emo: '👴', shirt: '#5e8c4f', ring: '#5e8c4f', tag: '#cfe8c4', hat: null, bag: null, hair: '#bdbdbd', glasses: true, sc: 1.25, home: [1357, -827], where: '여월동 할머니네집',
+  { key: 'ywgpa', name: '여월동 할아버지', subj: '여월동 할아버지가', top: '여월동 할아버지는', emo: '👴', shirt: '#5e8c4f', ring: '#5e8c4f', tag: '#cfe8c4', hat: null, bag: null, hair: '#bdbdbd', glasses: true, sc: 1.25, home: [1357, -827], where: '여월동 할머니네집',
     hi: ['허허, 지후 왔니?', '할아버지랑 가자!', '씩씩하구나!', '어디 놀러 갈까?'] },
   { key: 'dbgma', name: '할머니', subj: '할머니가', top: '대방동 할머니는', emo: '👵', shirt: '#d9822b', ring: '#d9822b', tag: '#f8d8b4', hat: null, bag: '#8a5a3c', hair: '#d4d4d4', sc: 1.15, home: [12216, 72], where: '할머니네 집 (대방동)',
     hi: ['지후 왔어? 어서 와!', '할머니가 맛있는 거 해 줄게!', '아이고 많이 컸네!', '할머니랑 갈까?'] },
@@ -3286,16 +3298,19 @@ function jihuCard(box){ // 따라가기 카드 아래 버튼: 가족마다 태�
     ? (m.off ? `<button class="wait" data-fam="stay:${m.key}">${m.emo} ${m.name} 다음에 내려요… (취소)</button>` : `<button class="off" data-fam="off:${m.key}">${m.emo} ${m.name} 내릴래요!</button>`)
     : `<button data-fam="on:${m.key}">${m.emo} ${m.name} 태우기${m.ride ? ' (갈아타기)' : ''}${m === JIHU ? `<small class="fare">💳 ${fareLabel(S.follow)}</small>` : ''}</button>`;
   const aboard = riders(S.follow), staying = aboard.filter(m => !m.off);
+  const rel = FAM.filter(m => m.home && m.ride !== S.follow); // 친척은 어디에 있든 한꺼번에 태울 수 있다
+  const allRel = rel.length ? `<button class="all rel" data-fam="allrel">👵👴👧 친척 ${rel.length === FAM.filter(m => m.home).length ? '다 같이' : '모두'} 태우기<small class="fare">${rel.map(m => m.name).join(' · ')}</small></button>` : '';
   const allOn = out.length > 1 ? `<button class="all" data-fam="all">👨‍👩‍👦‍👦 ${out.length >= 4 ? '다 같이' : '모두'} 태우기</button>` : '';
   const allOff = staying.length > 1 ? `<button class="all off" data-fam="alloff">👨‍👩‍👦‍👦 ${staying.length >= 4 ? '다 같이' : '모두'} 내릴래요!</button>`
     : aboard.length > 1 && !staying.length ? '<button class="all wait" data-fam="allstay">👨‍👩‍👦‍👦 다 같이 다음에 내려요… (취소)</button>' : '';
-  box.insertAdjacentHTML('beforeend', `<div class="jihu">${shown.map(btn).join('')}${allOn}${allOff}</div>`);
+  box.insertAdjacentHTML('beforeend', `<div class="jihu">${shown.map(btn).join('')}${allOn}${allRel}${allOff}</div>`);
 }
 $('#follow').addEventListener('pointerdown', e => { // 카드가 자주 다시 그려져서 누르는 순간에 바로 처리
   const b = e.target.closest && e.target.closest('[data-fam]'); if (!b) return;
   e.preventDefault(); actx();
   const [act, key] = b.dataset.fam.split(':'), m = FAM.find(x => x.key === key);
   if (act === 'all') famBoard(famHere().filter(x => x.ride !== S.follow), S.follow);
+  else if (act === 'allrel') famBoard(FAM.filter(x => x.home && x.ride !== S.follow), S.follow);
   else if (act === 'alloff') { const now = performance.now(), l = riders(S.follow); l.forEach(x => { x.off = true; x.offT = now; x.text = ''; }); if (l[0]) famSay(l[0], '다 같이 다음에 내려요!'); sfx('bell'); paintFollow(true); }
   else if (act === 'allstay') { const l = riders(S.follow); l.forEach(x => { x.off = false; x.text = ''; }); if (l[0]) famSay(l[0], '다 같이 더 갈래요!'); paintFollow(true); }
   else if (act === 'on') famBoard([m], S.follow);
@@ -3423,9 +3438,9 @@ function cardPaint(){
   const t = $('#tbal'); if (t) { t.textContent = won(CARD.bal); $('#ttot').textContent = won(CARD.total); t.parentNode.style.background = bg; }
 }
 const TRANSFER_MS = 30 * 60000;
-function fareOf(id){ // 어린이 요금: 일반·마을버스 500원, 좌석·직행좌석·광역 1,000원, 지하철 500원. 30분 안에 갈아타면 차액만
+function fareOf(id){ // 지후 요금: 일반·마을버스 830원, 좌석·직행좌석·광역 1,000원, 지하철 500원. 30분 안에 갈아타면 차액만
   const v = vehOf(id); if (!v) return null;
-  const fare = v.kind === 'train' ? 500 : /좌석|광역|공항/.test(v.b.r.type) ? 1000 : 500;
+  const fare = v.kind === 'train' ? 500 : /좌석|광역|공항/.test(v.b.r.type) ? 1000 : 830;
   const tr = !!(JIHU.ride || CARD.last && CARD.offT >= CARD.last.t && Date.now() - CARD.offT < TRANSFER_MS);
   return { fare, tr, pay: tr ? Math.max(0, fare - (CARD.last ? CARD.last.fare : 0)) : fare };
 }
@@ -3597,7 +3612,73 @@ function tyKbd(){
     el.classList.toggle('next', !!k && (c === k.code || c === 'Shift' && k.sh));
     if (c === 'Shift') el.classList.toggle('on', sh);
   }
+  handAim();
 }
+// 손 모양: 화면 자판 위에 두 손을 반투명하게 올려 두고, 칠 글쇠 쪽으로 그 손가락이 뻗어 가며 누를 때 꾹 눌린다
+// 손가락 번호 0~7 = 왼손 새끼·약·가운데·검지, 오른손 검지·가운데·약·새끼, 8·9 = 왼손·오른손 엄지
+const HAND = { f: [], raf: 0, geo: null, svg: null };
+const HAND_HOME = ['KeyA', 'KeyS', 'KeyD', 'KeyF', 'KeyJ', 'KeyK', 'KeyL', 'KeyL'];
+function handGeo(){
+  const kb = $('#kbd'), R = kb.getBoundingClientRect(), c = el => { const r = el.getBoundingClientRect(); return { x: r.left - R.left + r.width / 2, y: r.top - R.top + r.height / 2, w: r.width, h: r.height }; };
+  const key = code => { const el = kb.querySelector(`[data-code="${code}"]`); return el ? c(el) : null; };
+  const a = key('KeyA'); if (!a || !a.w) return null;
+  const kw = a.w, kh = a.h, sh = kb.querySelectorAll('[data-code="Shift"]'), sp = key('Space');
+  const rest = HAND_HOME.map((k, i) => { const p = key(k); return i === 7 ? { x: p.x + kw + 5, y: p.y } : { x: p.x, y: p.y }; });
+  rest.push({ x: sp.x - sp.w * 0.16, y: sp.y }, { x: sp.x + sp.w * 0.16, y: sp.y });
+  const len = [1.25, 1.55, 1.7, 1.5, 1.5, 1.7, 1.55, 1.25];
+  const palm = [{ x: (rest[0].x + rest[3].x) / 2 + kw * 0.2, y: rest[0].y + kh * 2.75 }, { x: (rest[4].x + rest[7].x) / 2 - kw * 0.2, y: rest[0].y + kh * 2.75 }];
+  const knuck = rest.map((p, i) => {
+    if (i >= 8) { const pm = palm[i - 8]; return { x: pm.x + (i === 8 ? kw * 1.1 : -kw * 1.1), y: pm.y - kh * 0.1 }; }
+    const pm = palm[i < 4 ? 0 : 1]; return { x: p.x * 0.72 + pm.x * 0.28, y: p.y + kh * len[i] };
+  });
+  return { kw, kh, rest, knuck, palm, key, shift: [sh[0] && c(sh[0]), sh[1] && c(sh[1])], H: R.height };
+}
+function handBuild(){
+  const NS = 'http://www.w3.org/2000/svg', kb = $('#kbd');
+  if (!HAND.svg) { HAND.svg = document.createElementNS(NS, 'svg'); HAND.svg.setAttribute('class', 'hands'); HAND.svg.setAttribute('aria-hidden', 'true'); kb.appendChild(HAND.svg); }
+  const g = handGeo(); if (!g) return; HAND.geo = g;
+  const fw = g.kw * 0.44, svg = HAND.svg;
+  svg.innerHTML = g.palm.map(p => `<ellipse class="palm" cx="${p.x}" cy="${p.y}" rx="${g.kw * 2.15}" ry="${g.kh * 1.05}"/><rect class="palm" x="${p.x - g.kw * 1.2}" y="${p.y}" width="${g.kw * 2.4}" height="${g.kh * 2}" rx="${g.kw * 0.6}"/>`).join('')
+    + g.rest.map((_, i) => `<g class="fg" data-i="${i}"><line class="glow" stroke-width="${fw + 9}"/><line class="edge" stroke-width="${(i >= 8 ? fw * 1.15 : fw) + 3}"/><line class="skin" stroke-width="${i >= 8 ? fw * 1.15 : fw}"/><ellipse class="nail" rx="${fw * 0.26}" ry="${fw * 0.32}"/></g>`).join('');
+  HAND.f = g.rest.map((p, i) => { const o = HAND.f[i]; return { x: o ? o.x : p.x, y: o ? o.y : p.y, tx: p.x, ty: p.y, press: 0, bad: 0, on: false, el: svg.querySelector(`.fg[data-i="${i}"]`) }; });
+  handAim();
+}
+const handOf = code => code === 'Space' ? 9 : fingerOf(code);
+function handAim(){ // 칠 글쇠로 손가락을 미리 뻗는다 (Shift가 필요하면 반대손 새끼손가락은 Shift로)
+  const g = HAND.geo; if (!g) return;
+  const k = needKey(), fi = k ? handOf(k.code) : -1, sf = k && k.sh ? (fi >= 4 && fi < 8 ? 0 : 7) : -1;
+  HAND.f.forEach((f, i) => {
+    let t = g.rest[i];
+    if (i === fi) t = g.key(k.code) || t;
+    if (i === sf) t = g.shift[sf === 0 ? 0 : 1] || t;
+    f.tx = t.x; f.ty = t.y; f.on = i === fi || i === sf;
+  });
+}
+function handPress(code, ok){
+  const g = HAND.geo; if (!g) return; const i = handOf(code); if (i < 0) return;
+  const f = HAND.f[i], p = g.key(code); if (p) { f.x = f.x * 0.3 + p.x * 0.7; f.y = f.y * 0.3 + p.y * 0.7; }
+  f.press = 1; if (!ok) f.bad = 1;
+  const kb = $(`#kbd [data-code="${code}"]`); if (kb) { kb.classList.remove('press'); void kb.offsetWidth; kb.classList.add('press'); setTimeout(() => kb.classList.remove('press'), 160); }
+  const k = needKey(); if (ok && k && k.sh) { const s = HAND.f[handOf(code) >= 4 && handOf(code) < 8 ? 0 : 7]; s.press = 1; }
+}
+function handLoop(){
+  HAND.raf = 0; if (!TY.open || !HAND.geo) return;
+  const g = HAND.geo, t = performance.now() / 1000;
+  HAND.f.forEach((f, i) => {
+    f.x += (f.tx - f.x) * 0.28; f.y += (f.ty - f.y) * 0.28; f.press *= 0.82; f.bad *= 0.93;
+    const shake = f.bad > 0.05 ? Math.sin(t * 60) * 4 * f.bad : 0, r = g.rest[i], kn = g.knuck[i];
+    const tipX = f.x + shake, tipY = f.y + f.press * 4, kx = kn.x + (f.x - r.x) * 0.38, ky = kn.y + (f.y - r.y) * 0.3;
+    const len = Math.hypot(tipX - kx, tipY - ky) || 1, ux = (tipX - kx) / len, uy = (tipY - ky) / len, end = 1 - f.press * 0.08;
+    const ex = kx + (tipX - kx) * end, ey = ky + (tipY - ky) * end;
+    for (const ln of f.el.querySelectorAll('line')) { ln.setAttribute('x1', kx); ln.setAttribute('y1', ky); ln.setAttribute('x2', ex); ln.setAttribute('y2', ey); }
+    const nail = f.el.querySelector('.nail'); nail.setAttribute('cx', ex - ux * 2); nail.setAttribute('cy', ey - uy * 2);
+    nail.setAttribute('transform', `rotate(${Math.atan2(uy, ux) * 180 / Math.PI + 90} ${ex - ux * 2} ${ey - uy * 2})`);
+    f.el.classList.toggle('on', f.on); f.el.classList.toggle('bad', f.bad > 0.15); f.el.classList.toggle('down', f.press > 0.3);
+  });
+  HAND.raf = requestAnimationFrame(handLoop);
+}
+function handStart(){ requestAnimationFrame(() => { handBuild(); if (!HAND.raf) HAND.raf = requestAnimationFrame(handLoop); }); }
+new ResizeObserver(() => { if (TY.open) handBuild(); }).observe($('#kbd'));
 function coin(t, x, y, big){ const c = document.createElement('span'); c.className = 'coin' + (big ? ' big' : ''); c.textContent = t; c.style.left = x + 'px'; c.style.top = y + 'px'; $('#typing').appendChild(c); setTimeout(() => c.remove(), 1100); }
 function tyEarn(n, el){
   if (!n) return; n *= TY.mult; CARD.bal += n; CARD.total += n; cardSave(); cardPaint();
@@ -3611,14 +3692,14 @@ function tyInput(code, sh){
   const ok = code === k.code && (sh === k.sh || !(DUB[code] || '')[1]);
   const kb = $(`#kbd [data-code="${code}"]`), slot = TY.item.slots[TY.si];
   if (!ok) {
-    TY.miss++; sfx('buzz'); weakNote(slot.keys[TY.ki], true); cardSave();
+    TY.miss++; sfx('buzz'); weakNote(slot.keys[TY.ki], true); cardSave(); handPress(code, false);
     if (TY.combo || TY.mult > 1) { const was = TY.mult > 1; TY.combo = 0; TY.mult = 1; tyCombo(); if (was) { $('#tcombo').innerHTML = '💧 콤보가 끝났어요. 다시 3번 연속 도전!'; setTimeout(() => sfx('combooff'), 250); } }
     tyHint(true); tyKbd();
     if (kb) { kb.classList.remove('bad'); void kb.offsetWidth; kb.classList.add('bad'); setTimeout(() => kb.classList.remove('bad'), 450); }
     const t = $('#ttarget'); t.classList.remove('shake'); void t.offsetWidth; t.classList.add('shake');
     return;
   }
-  TY.osk = false; tick1(); weakNote(slot.keys[TY.ki], false); TY.ki++;
+  handPress(code, true); TY.osk = false; tick1(); weakNote(slot.keys[TY.ki], false); TY.ki++;
   if (TY.ki >= slot.keys.length) { // 한 칸 완성
     const el = $('#ttarget').children[TY.si]; TY.si++; TY.ki = 0;
     if (slot.ch !== ' ') tyEarn(st.per, el);
@@ -3680,6 +3761,7 @@ function tyOpen(){
   let i = Math.min(CARD.cur || 0, TSTAGES.length - 1); if (!unlocked(i)) i = 0; TY.st = i;
   if (!SND.on) { SND.on = true; soundBtn(); } actx();
   cardPaint(); tyView('type'); tyNew(true); // 열 때는 읽어 주지 않는다
+  handStart();
 }
 function tyClose(){ TY.open = false; $('#typing').hidden = true; document.querySelector('.app').classList.remove('typing-on'); if (window.speechSynthesis && SND.on) speechSynthesis.cancel(); }
 $('#cardbtn').onclick = () => TY.open ? tyClose() : tyOpen();

@@ -1011,6 +1011,8 @@ if (!OK.marks.some(m => m[0] === '대장 A8블록')) OK.marks.push(['대장 A8�
 // 우리 가족이 놀러 가는 집 (도로명 주소의 번호로 골목 위 위치를 계산해 찍었다. 주소 글자는 화면에 넣지 않는다)
 const HOMES = [['할머니네 집', '지후 할머니 집 · 대방동 (서울지방병무청역 근처)', 12216, -19, 'home', '👵', '할머니'], ['다윤이누나 집', '다윤이 누나 집 · 신길동 (보라매역 북쪽)', 11695, -484, 'home', '👧', '다윤이 누나']];
 for (const h of HOMES) if (!OK.marks.some(m => m[0] === h[0])) OK.marks.push(h);
+{ const m = OK.marks.find(m => m[0] === '여월휴먼시아 4단지'); // 지후 할머니·할아버지가 사는 곳
+  if (m) { m.splice(0, m.length, '여월동 할머니네집', '여월휴먼시아 4단지 · 할머니 할아버지 집', m[2], m[3], 'home', '👵', '할머니'); HOMES.push(m); } }
 OK.bld.sort((a, b) => Math.max(...a[1].filter((_, i) => i % 2)) - Math.max(...b[1].filter((_, i) => i % 2)));
 const AREA_COL = { ind: '--ind', farm: '--farm', grass: '--grass', resi: '--resi', cons: '--resi', cem: '--park', wood: '--wood', park: '--park', pitch: '--park', school: '--school', park_lot: '--resi', wet: '--water', water: '--water' };
 function inView(f, pad = 40){ for (let i = 0; i < f.length; i += 2) { const x = sx(f[i]), y = sy(f[i + 1]); if (x > -pad && y > -pad && x < W + pad && y < H + pad) return true; } return false; }
@@ -3203,13 +3205,30 @@ const FAM = [
     hi: ['손 꼭 잡고 가자!', '어디 갈까?', '천천히 가자~', '간식 챙겼어!', '조심해서 타자!'] },
   { key: 'dad', name: '아빠', subj: '아빠가', emo: '👨', shirt: '#4a6fa5', ring: '#4a6fa5', tag: '#a9c4ef', hat: null, bag: null, hair: '#151515', glasses: true, sc: 1.32, dx: -70,
     hi: ['아빠랑 가자!', '꽉 잡아!', '어디 가 볼까?', '출발~!', '지하철 탈까?'] },
+  // 친척: 늘 자기 집 앞에서 시작한다 (어디서 내렸든 다시 켜면 집 앞으로 돌아간다). 근처에 온 버스·열차에만 태울 수 있다
+  { key: 'ywgma', name: '할머니', subj: '할머니가', top: '여월동 할머니는', emo: '👵', shirt: '#9b6bc9', ring: '#9b6bc9', tag: '#e3cdf5', hat: null, bag: '#b5651d', hair: '#d4d4d4', sc: 1.15, home: [1357, -827], where: '여월동 할머니네집',
+    hi: ['우리 지후 왔구나!', '밥 먹고 가~', '아이고 예뻐라!', '할머니랑 버스 탈까?', '조심해서 다녀!'] },
+  { key: 'ywgpa', name: '할아버지', subj: '할아버지가', top: '여월동 할아버지는', emo: '👴', shirt: '#5e8c4f', ring: '#5e8c4f', tag: '#cfe8c4', hat: null, bag: null, hair: '#bdbdbd', glasses: true, sc: 1.25, home: [1357, -827], where: '여월동 할머니네집',
+    hi: ['허허, 지후 왔니?', '할아버지랑 가자!', '씩씩하구나!', '어디 놀러 갈까?'] },
+  { key: 'dbgma', name: '할머니', subj: '할머니가', top: '대방동 할머니는', emo: '👵', shirt: '#d9822b', ring: '#d9822b', tag: '#f8d8b4', hat: null, bag: '#8a5a3c', hair: '#d4d4d4', sc: 1.15, home: [12216, 72], where: '할머니네 집 (대방동)',
+    hi: ['지후 왔어? 어서 와!', '할머니가 맛있는 거 해 줄게!', '아이고 많이 컸네!', '할머니랑 갈까?'] },
+  { key: 'dbgpa', name: '할아버지', subj: '할아버지가', top: '대방동 할아버지는', emo: '👴', shirt: '#4f6d8e', ring: '#4f6d8e', tag: '#c6d6ea', hat: null, bag: null, hair: '#bdbdbd', glasses: true, sc: 1.25, home: [12216, 72], where: '할머니네 집 (대방동)',
+    hi: ['허허, 우리 지후!', '할아버지랑 지하철 탈까?', '잘 지냈니?', '출발해 볼까?'] },
+  { key: 'dayun', name: '함다윤', subj: '다윤이 누나가', top: '다윤이 누나는', emo: '👧', shirt: '#ff7eb6', ring: '#ff7eb6', tag: '#ffd0e4', hat: null, bag: '#6c5ce7', hair: '#3a2a20', long: true, sc: 0.95, home: [11695, -392], where: '다윤이누나 집',
+    hi: ['지후야 안녕!', '누나랑 놀자!', '같이 지하철 탈까?', '숨바꼭질 하자!'] },
+  { key: 'imo', name: '이모', subj: '이모가', top: '이모는', emo: '👩', shirt: '#2bb3a6', ring: '#2bb3a6', tag: '#bff0ea', hat: null, bag: '#c0392b', hair: '#2b1d16', long: true, sc: 1.2, home: [11695, -392], where: '다윤이누나 집',
+    hi: ['지후 왔어?', '이모랑 놀자~', '간식 줄까?', '조심해서 타!'] },
+  { key: 'imobu', name: '이모부', subj: '이모부가', top: '이모부는', emo: '👨', shirt: '#3d5a80', ring: '#3d5a80', tag: '#c3d3ea', hat: null, bag: null, hair: '#151515', sc: 1.3, home: [11695, -392], where: '다윤이누나 집',
+    hi: ['지후 안녕!', '이모부랑 가자!', '출발해 볼까?', '꽉 잡아~'] },
 ];
-const JIHU = FAM[0], LINEUP = ['dad', 'mom', 'jihu', 'jian'];
+const JIHU = FAM[0], LINEUP = ['dad', 'mom', 'jihu', 'jian', 'ywgpa', 'ywgma', 'dbgpa', 'dbgma', 'imobu', 'imo', 'dayun'];
+FAM[1].top = '지안이는';
 for (const m of FAM) {
+  if (m.home) { Object.assign(m, { x: m.home[0], y: m.home[1], ride: null, off: false, offT: 0, lost: 0, text: '', textT: 0 }); continue; } // 친척은 저장하지 않는다
   Object.assign(m, { x: OK.center[0] + m.dx, y: OK.center[1] + 6, ride: null, off: false, offT: 0, lost: 0, text: '', textT: 0, where: '우리 동네' });
   try { const j = JSON.parse(localStorage.getItem('bucheon-bus-' + m.key) || 'null'); if (j && isFinite(j.x) && isFinite(j.y)) { m.x = j.x; m.y = j.y; m.where = j.where || m.where; } } catch (_) {}
 }
-const famSave = m => { try { localStorage.setItem('bucheon-bus-' + m.key, JSON.stringify({ x: Math.round(m.x), y: Math.round(m.y), where: m.where })); } catch (_) {} };
+const famSave = m => { if (m.home) return; try { localStorage.setItem('bucheon-bus-' + m.key, JSON.stringify({ x: Math.round(m.x), y: Math.round(m.y), where: m.where })); } catch (_) {} };
 const famSz = m => Math.max(11, Math.min(20, V.k * 22)) * m.sc;
 const riders = id => FAM.filter(m => m.ride && m.ride === id);
 function famSay(m, t){ m.text = t; m.textT = performance.now(); }
@@ -3220,7 +3239,7 @@ function famBoard(list, id){
   for (const m of list) { m.ride = id; m.off = false; m.lost = 0; m.text = ''; }
   famSay(list[0], list.length > 1 ? '다 같이 출발~!' : '출발~!'); // 말풍선은 한 사람만 (겹치지 않게)
   sfx('yay');
-  const who = list.length === FAM.length ? '우리 가족이 다 같이' : list.length > 1 ? list.map(m => m.name).join(', ') + '이(가) 같이' : list[0].subj;
+  const who = list.length >= 4 ? '다 같이' : list.length > 1 ? list.map(m => m.name).join(', ') + '이(가) 같이' : list[0].subj;
   say(`${beep}${who} ${v.name}${v.kind === 'train' ? ' 열차' : ' 버스'}에 탔어요. 출발!`);
   paintFollow(true);
 }
@@ -3256,23 +3275,27 @@ function famStep(){
     paintFollow(true);
   }
 }
+function famHere(){ // 지금 따라가는 탈것에 태울 수 있는 사람: 우리 가족은 늘, 친척은 가까이 있을 때만
+  const v = vehOf(S.follow);
+  return FAM.filter(m => !m.home || m.ride === S.follow || v && !m.ride && Math.hypot(m.x - v.x, m.y - v.y) < 900);
+}
 function jihuCard(box){ // 따라가기 카드 아래 버튼: 가족마다 태우기 · 내리기
   if (!S.follow) return;
-  const out = FAM.filter(m => m.ride !== S.follow);
+  const out = famHere().filter(m => m.ride !== S.follow), shown = famHere();
   const btn = m => m.ride === S.follow
     ? (m.off ? `<button class="wait" data-fam="stay:${m.key}">${m.emo} ${m.name} 다음에 내려요… (취소)</button>` : `<button class="off" data-fam="off:${m.key}">${m.emo} ${m.name} 내릴래요!</button>`)
     : `<button data-fam="on:${m.key}">${m.emo} ${m.name} 태우기${m.ride ? ' (갈아타기)' : ''}${m === JIHU ? `<small class="fare">💳 ${fareLabel(S.follow)}</small>` : ''}</button>`;
   const aboard = riders(S.follow), staying = aboard.filter(m => !m.off);
-  const allOn = out.length > 1 ? `<button class="all" data-fam="all">👨‍👩‍👦‍👦 ${out.length === FAM.length ? '다 같이' : '모두'} 태우기</button>` : '';
-  const allOff = staying.length > 1 ? `<button class="all off" data-fam="alloff">👨‍👩‍👦‍👦 ${staying.length === FAM.length ? '다 같이' : '모두'} 내릴래요!</button>`
+  const allOn = out.length > 1 ? `<button class="all" data-fam="all">👨‍👩‍👦‍👦 ${out.length >= 4 ? '다 같이' : '모두'} 태우기</button>` : '';
+  const allOff = staying.length > 1 ? `<button class="all off" data-fam="alloff">👨‍👩‍👦‍👦 ${staying.length >= 4 ? '다 같이' : '모두'} 내릴래요!</button>`
     : aboard.length > 1 && !staying.length ? '<button class="all wait" data-fam="allstay">👨‍👩‍👦‍👦 다 같이 다음에 내려요… (취소)</button>' : '';
-  box.insertAdjacentHTML('beforeend', `<div class="jihu">${FAM.map(btn).join('')}${allOn}${allOff}</div>`);
+  box.insertAdjacentHTML('beforeend', `<div class="jihu">${shown.map(btn).join('')}${allOn}${allOff}</div>`);
 }
 $('#follow').addEventListener('pointerdown', e => { // 카드가 자주 다시 그려져서 누르는 순간에 바로 처리
   const b = e.target.closest && e.target.closest('[data-fam]'); if (!b) return;
   e.preventDefault(); actx();
   const [act, key] = b.dataset.fam.split(':'), m = FAM.find(x => x.key === key);
-  if (act === 'all') famBoard(FAM.filter(x => x.ride !== S.follow), S.follow);
+  if (act === 'all') famBoard(famHere().filter(x => x.ride !== S.follow), S.follow);
   else if (act === 'alloff') { const now = performance.now(), l = riders(S.follow); l.forEach(x => { x.off = true; x.offT = now; x.text = ''; }); if (l[0]) famSay(l[0], '다 같이 다음에 내려요!'); sfx('bell'); paintFollow(true); }
   else if (act === 'allstay') { const l = riders(S.follow); l.forEach(x => { x.off = false; x.text = ''; }); if (l[0]) famSay(l[0], '다 같이 더 갈래요!'); paintFollow(true); }
   else if (act === 'on') famBoard([m], S.follow);
@@ -3284,11 +3307,11 @@ function famBtn(){ const m = FAM[famFind]; $('#zjihu').textContent = m.emo; $('#
 $('#zjihu').onclick = () => {
   actx();
   const m = FAM[famFind]; famFind = (famFind + 1) % FAM.length; famBtn();
-  if (m.ride) { const v = vehOf(m.ride); if (v && v.tn) followTrain(v.tn); else if (v && v.b) followBus(v.b); toast(`${m.emo} ${m.name}${m.name === '지안' ? '이' : ''}는 지금 ${v ? v.name : ''} 타고 가는 중!`); }
-  else { userMoved = true; flyTo(m.x, m.y, Math.max(V.k, 0.6)); famSay(m, '여기야 여기!'); sfx('pop'); toast(`${m.emo} ${m.name}${m.name === '지안' ? '이' : ''}는 ${m.where}에 있어요. 버스나 열차를 눌러 태워 보세요`); }
+  if (m.ride) { const v = vehOf(m.ride); if (v && v.tn) followTrain(v.tn); else if (v && v.b) followBus(v.b); toast(`${m.emo} ${m.top || m.name + '는'} 지금 ${v ? v.name : ''} 타고 가는 중!`); }
+  else { userMoved = true; flyTo(m.x, m.y, Math.max(V.k, 0.6)); famSay(m, '여기야 여기!'); sfx('pop'); toast(`${m.emo} ${m.top || m.name + '는'} ${m.where}에 있어요. 버스나 열차를 눌러 태워 보세요`); }
 };
 famBtn();
-function famTap(m){ famSay(m, m.hi[Math.floor(Math.random() * m.hi.length)]); sfx('pop'); say(m.key === 'jihu' ? '안녕! 버스나 열차를 눌러서 나를 태워 줘' : `${m.name}도 같이 갈래! 버스나 열차를 눌러서 태워 줘`); }
+function famTap(m){ famSay(m, m.hi[Math.floor(Math.random() * m.hi.length)]); sfx('pop'); say(m.key === 'jihu' ? '안녕! 버스나 열차를 눌러서 나를 태워 줘' : m.home ? m.hi[0] : `${m.name}도 같이 갈래! 버스나 열차를 눌러서 태워 줘`); }
 function famFace(g, m, bx, by, sz){ // 탔을 때 동그라미 안 얼굴
   g.fillStyle = '#fff'; g.beginPath(); g.arc(bx, by, sz * 0.82, 0, 7); g.fill(); g.strokeStyle = m.ring; g.lineWidth = 2.5; g.stroke();
   if (m.long) { g.fillStyle = m.hair; rrect(g, bx - sz * 0.6, by - sz * 0.25, sz * 1.2, sz * 0.75, sz * 0.25); g.fill(); }
@@ -3340,10 +3363,11 @@ function drawJihu(g){
   const used = new Set();
   for (const a of stand) {
     if (used.has(a)) continue;
-    const grp = stand.filter(b => !used.has(b) && Math.hypot(b.x - a.x, b.y - a.y) < gap * 1.6);
+    const grp = stand.filter(b => !used.has(b) && Math.hypot(b.x - a.x, b.y - a.y) < gap * 2.2);
     grp.forEach(b => used.add(b)); grp.sort((p, q) => LINEUP.indexOf(p.m.key) - LINEUP.indexOf(q.m.key)); // 아빠·엄마·지후·지안 순서로 왼쪽부터
     const cx = grp.reduce((t, b) => t + b.x, 0) / grp.length;
-    grp.forEach((b, k) => shift.set(b.m, cx + (k - (grp.length - 1) / 2) * gap - b.x));
+    const fs = Math.max(11, Math.max(11, Math.min(20, V.k * 22)) * 0.72), sp = Math.max(gap, ...grp.map(b => b.m.name.length * fs + 16)); // 이름표가 겹치지 않게
+    grp.forEach((b, k) => shift.set(b.m, cx + (k - (grp.length - 1) / 2) * sp - b.x));
   }
   for (const { m, i } of order) {
     let slot = i * 0.7;

@@ -250,15 +250,11 @@ canvas.drag{cursor:grabbing}
 .kbd .k.on{background:#3d8bfd;color:#fff}
 .kbd{position:relative;padding-bottom:32px}
 .kbd .k.press{transform:translateY(3px);border-bottom-width:1px;filter:brightness(.92)}
-.hands{position:absolute;left:0;top:0;width:100%;height:100%;overflow:visible;pointer-events:none;z-index:2;opacity:.7}
-.hands .palm{fill:#f2cda9;stroke:#d29a72;stroke-width:1.5}
-.hands .edge{stroke:#d29a72;stroke-linecap:round}
-.hands .skin{stroke:#f2cda9;stroke-linecap:round}
-.hands .fg.down .skin{stroke:#e2a77c}
-.hands .glow{stroke:#3d8bfd;stroke-linecap:round;opacity:0;transition:opacity .2s}
-.hands .fg.on .glow{opacity:.85}
-.hands .fg.bad .glow{stroke:#ff5a3c;opacity:1}
-.hands .nail{fill:#fff6ef}
+.hands{position:absolute;left:0;top:0;width:100%;height:100%;overflow:visible;pointer-events:none;z-index:2;opacity:.5}
+.hands .hout path{fill:#b98361;stroke:#b98361;stroke-width:3;stroke-linejoin:round}
+.hands .hfill path{fill:#f1cfb2;stroke:none}
+.hands .nail{fill:#fbe9dc;stroke:#d9a888;stroke-width:.8}
+.hands .crease{fill:none;stroke:#c99375;stroke-width:1;stroke-linecap:round;opacity:.8}
 .kbd.nope{animation:shake .3s}
 .kbd .k{cursor:default}
 .kbd .k.bad{background:#ff6b4a!important;color:#fff}
@@ -3614,70 +3610,59 @@ function tyKbd(){
   }
   handAim();
 }
-// 손 모양: 화면 자판 위에 두 손을 반투명하게 올려 두고, 칠 글쇠 쪽으로 그 손가락이 뻗어 가며 누를 때 꾹 눌린다
-// 손가락 번호 0~7 = 왼손 새끼·약·가운데·검지, 오른손 검지·가운데·약·새끼, 8·9 = 왼손·오른손 엄지
-const HAND = { f: [], raf: 0, geo: null, svg: null };
-const HAND_HOME = ['KeyA', 'KeyS', 'KeyD', 'KeyF', 'KeyJ', 'KeyK', 'KeyL', 'KeyL'];
-function handGeo(){
-  const kb = $('#kbd'), R = kb.getBoundingClientRect(), c = el => { const r = el.getBoundingClientRect(); return { x: r.left - R.left + r.width / 2, y: r.top - R.top + r.height / 2, w: r.width, h: r.height }; };
-  const key = code => { const el = kb.querySelector(`[data-code="${code}"]`); return el ? c(el) : null; };
-  const a = key('KeyA'); if (!a || !a.w) return null;
-  const kw = a.w, kh = a.h, sh = kb.querySelectorAll('[data-code="Shift"]'), sp = key('Space');
-  const rest = HAND_HOME.map((k, i) => { const p = key(k); return i === 7 ? { x: p.x + kw + 5, y: p.y } : { x: p.x, y: p.y }; });
-  rest.push({ x: sp.x - sp.w * 0.16, y: sp.y }, { x: sp.x + sp.w * 0.16, y: sp.y });
-  const len = [1.25, 1.55, 1.7, 1.5, 1.5, 1.7, 1.55, 1.25];
-  const palm = [{ x: (rest[0].x + rest[3].x) / 2 + kw * 0.2, y: rest[0].y + kh * 2.75 }, { x: (rest[4].x + rest[7].x) / 2 - kw * 0.2, y: rest[0].y + kh * 2.75 }];
-  const knuck = rest.map((p, i) => {
-    if (i >= 8) { const pm = palm[i - 8]; return { x: pm.x + (i === 8 ? kw * 1.1 : -kw * 1.1), y: pm.y - kh * 0.1 }; }
-    const pm = palm[i < 4 ? 0 : 1]; return { x: p.x * 0.72 + pm.x * 0.28, y: p.y + kh * len[i] };
-  });
-  return { kw, kh, rest, knuck, palm, key, shift: [sh[0] && c(sh[0]), sh[1] && c(sh[1])], H: R.height };
+// 손 모양: 화면 자판의 기본 자리(ㅁㄴㅇㄹ · ㅓㅏㅣ)에 두 손을 살며시 얹어 둔다 (움직이지 않는다)
+// 손가락·손바닥·엄지를 각각 그린 뒤, 테두리 층 위에 살색 층을 겹쳐 하나의 손처럼 보이게 한다
+const HAND = { svg: null };
+function handFinger(T, B, wt, wb){ // T: 손끝 쪽 중심, B: 뿌리 쪽 중심 → 끝이 둥글고 뿌리가 굵은 손가락
+  const n = v => Math.round(v * 10) / 10, dx = B.x - T.x, dy = B.y - T.y, l = Math.hypot(dx, dy) || 1, ux = dx / l, uy = dy / l, nx = -uy, ny = ux;
+  const P = (x, y) => `${n(x)},${n(y)}`;
+  return `M${P(T.x + nx * wt, T.y + ny * wt)} C${P(T.x + nx * wt * 0.98 + ux * l * 0.45, T.y + ny * wt * 0.98 + uy * l * 0.45)} ${P(B.x + nx * wb - ux * l * 0.3, B.y + ny * wb - uy * l * 0.3)} ${P(B.x + nx * wb, B.y + ny * wb)}`
+    + ` L${P(B.x - nx * wb, B.y - ny * wb)} C${P(B.x - nx * wb - ux * l * 0.3, B.y - ny * wb - uy * l * 0.3)} ${P(T.x - nx * wt * 0.98 + ux * l * 0.45, T.y - ny * wt * 0.98 + uy * l * 0.45)} ${P(T.x - nx * wt, T.y - ny * wt)}`
+    + ` C${P(T.x - nx * wt - ux * wt * 1.3, T.y - ny * wt - uy * wt * 1.3)} ${P(T.x + nx * wt - ux * wt * 1.3, T.y + ny * wt - uy * wt * 1.3)} ${P(T.x + nx * wt, T.y + ny * wt)} Z`;
+}
+function handNail(T, B, w){
+  const n = v => Math.round(v * 10) / 10, a = Math.atan2(B.y - T.y, B.x - T.x) * 180 / Math.PI - 90, l = Math.hypot(B.x - T.x, B.y - T.y) || 1;
+  const cx = T.x + (B.x - T.x) / l * w * 0.15, cy = T.y + (B.y - T.y) / l * w * 0.15;
+  return `<ellipse class="nail" cx="${n(cx)}" cy="${n(cy)}" rx="${n(w * 0.58)}" ry="${n(w * 0.72)}" transform="rotate(${n(a)} ${n(cx)} ${n(cy)})"/>`;
+}
+function handOne(tips, thumbTip, side, p, r){ // tips: 새끼→검지, side: 왼손 1 / 오른손 -1
+  const n = v => Math.round(v * 10) / 10, P = (x, y) => `${n(x)},${n(y)}`;
+  const len = [1.1, 1.4, 1.55, 1.38].map(v => v * r), wt = [0.24, 0.28, 0.29, 0.29].map(v => v * p), wb = [0.3, 0.35, 0.37, 0.38].map(v => v * p);
+  const mid = (tips[0].x + tips[3].x) / 2;
+  const T = tips.map(t => ({ x: t.x, y: t.y - r * 0.12 }));
+  const B = T.map((t, i) => ({ x: t.x * 0.86 + mid * 0.14 + side * 0.04 * p, y: t.y + len[i] }));
+  const shapes = B.map((b, i) => handFinger(T[i], b, wt[i], wb[i]));
+  // 손바닥: 손가락 뿌리에서 손목으로 조금씩 좁아진다
+  const outer = side > 0 ? 0 : 3, inner = 3 - outer, ox = B[0].x - side * wb[0] * 0.95, ix = B[3].x + side * wb[3] * 1.05;
+  const top = Math.min(...B.map(b => b.y)) - r * 0.15, kn = B[3].y, bot = kn + r * 2.0;
+  const cx = (ox + ix) / 2 + side * 0.15 * p, hw = Math.abs(ix - ox) / 2 * 0.78;
+  const wl = cx - hw, wr = cx + hw, L = Math.min(ox, ix), R = Math.max(ox, ix);
+  const yL = side > 0 ? B[0].y : B[3].y, yR = side > 0 ? B[3].y : B[0].y;
+  shapes.push(`M${P(L, yL - r * 0.2)} Q${P((L + R) / 2, top - r * 0.12)} ${P(R, yR - r * 0.2)} C${P(R + 0.05 * p, yR + r * 0.9)} ${P(wr + 0.05 * p, bot - r * 0.7)} ${P(wr, bot)} L${P(wr, bot + r * 2)} L${P(wl, bot + r * 2)} L${P(wl, bot)} C${P(wl - 0.05 * p, bot - r * 0.7)} ${P(L - 0.05 * p, yL + r * 0.9)} ${P(L, yL - r * 0.2)} Z`);
+  // 엄지: 손바닥 안쪽 아래에서 띄어쓰기로
+  const tb = { x: B[3].x - side * 0.2 * p, y: kn + r * 1.25 };
+  thumbTip = { x: side > 0 ? Math.min(thumbTip.x, ix + 0.75 * p) : Math.max(thumbTip.x, ix - 0.75 * p), y: thumbTip.y };
+  shapes.push(handFinger(thumbTip, tb, 0.3 * p, 0.48 * p));
+  let det = T.map((t, i) => handNail(t, B[i], wt[i])).join('') + handNail(thumbTip, tb, 0.32 * p);
+  // 손가락 마디 주름 (아주 옅게)
+  T.forEach((t, i) => { const b = B[i], q = 0.42, x = t.x + (b.x - t.x) * q, y = t.y + (b.y - t.y) * q, h = wt[i] * 0.55; det += `<path class="crease" d="M${P(x - h, y)} Q${P(x, y + r * 0.06)} ${P(x + h, y)}"/>`; });
+  return { shapes, det };
 }
 function handBuild(){
   const NS = 'http://www.w3.org/2000/svg', kb = $('#kbd');
   if (!HAND.svg) { HAND.svg = document.createElementNS(NS, 'svg'); HAND.svg.setAttribute('class', 'hands'); HAND.svg.setAttribute('aria-hidden', 'true'); kb.appendChild(HAND.svg); }
-  const g = handGeo(); if (!g) return; HAND.geo = g;
-  const fw = g.kw * 0.44, svg = HAND.svg;
-  svg.innerHTML = g.palm.map(p => `<ellipse class="palm" cx="${p.x}" cy="${p.y}" rx="${g.kw * 2.15}" ry="${g.kh * 1.05}"/><rect class="palm" x="${p.x - g.kw * 1.2}" y="${p.y}" width="${g.kw * 2.4}" height="${g.kh * 2}" rx="${g.kw * 0.6}"/>`).join('')
-    + g.rest.map((_, i) => `<g class="fg" data-i="${i}"><line class="glow" stroke-width="${fw + 9}"/><line class="edge" stroke-width="${(i >= 8 ? fw * 1.15 : fw) + 3}"/><line class="skin" stroke-width="${i >= 8 ? fw * 1.15 : fw}"/><ellipse class="nail" rx="${fw * 0.26}" ry="${fw * 0.32}"/></g>`).join('');
-  HAND.f = g.rest.map((p, i) => { const o = HAND.f[i]; return { x: o ? o.x : p.x, y: o ? o.y : p.y, tx: p.x, ty: p.y, press: 0, bad: 0, on: false, el: svg.querySelector(`.fg[data-i="${i}"]`) }; });
-  handAim();
+  const R = kb.getBoundingClientRect(), key = code => { const el = kb.querySelector(`[data-code="${code}"]`); if (!el) return null; const q = el.getBoundingClientRect(); return { x: q.left - R.left + q.width / 2, y: q.top - R.top + q.height / 2, w: q.width }; };
+  const a = key('KeyA'), s = key('KeyS'), z = key('KeyZ'), sp = key('Space'), l = key('KeyL'); if (!a || !a.w || !sp || !l) return;
+  const p = s.x - a.x, r = z.y - a.y;
+  const hands = [
+    handOne(['KeyA', 'KeyS', 'KeyD', 'KeyF'].map(key), { x: sp.x + sp.w * 0.45, y: sp.y }, 1, p, r),
+    handOne([{ x: l.x + p, y: l.y }, l, key('KeyK'), key('KeyJ')], { x: sp.x - sp.w * 0.45, y: sp.y }, -1, p, r)
+  ];
+  HAND.svg.innerHTML = hands.map(h => `<g class="hout">${h.shapes.map(d => `<path d="${d}"/>`).join('')}</g><g class="hfill">${h.shapes.map(d => `<path d="${d}"/>`).join('')}</g><g class="hdet">${h.det}</g>`).join('');
 }
-const handOf = code => code === 'Space' ? 9 : fingerOf(code);
-function handAim(){ // 칠 글쇠로 손가락을 미리 뻗는다 (Shift가 필요하면 반대손 새끼손가락은 Shift로)
-  const g = HAND.geo; if (!g) return;
-  const k = needKey(), fi = k ? handOf(k.code) : -1, sf = k && k.sh ? (fi >= 4 && fi < 8 ? 0 : 7) : -1;
-  HAND.f.forEach((f, i) => {
-    let t = g.rest[i];
-    if (i === fi) t = g.key(k.code) || t;
-    if (i === sf) t = g.shift[sf === 0 ? 0 : 1] || t;
-    f.tx = t.x; f.ty = t.y; f.on = i === fi || i === sf;
-  });
-}
-function handPress(code, ok){
-  const g = HAND.geo; if (!g) return; const i = handOf(code); if (i < 0) return;
-  const f = HAND.f[i], p = g.key(code); if (p) { f.x = f.x * 0.3 + p.x * 0.7; f.y = f.y * 0.3 + p.y * 0.7; }
-  f.press = 1; if (!ok) f.bad = 1;
-  const kb = $(`#kbd [data-code="${code}"]`); if (kb) { kb.classList.remove('press'); void kb.offsetWidth; kb.classList.add('press'); setTimeout(() => kb.classList.remove('press'), 160); }
-  const k = needKey(); if (ok && k && k.sh) { const s = HAND.f[handOf(code) >= 4 && handOf(code) < 8 ? 0 : 7]; s.press = 1; }
-}
-function handLoop(){
-  HAND.raf = 0; if (!TY.open || !HAND.geo) return;
-  const g = HAND.geo, t = performance.now() / 1000;
-  HAND.f.forEach((f, i) => {
-    f.x += (f.tx - f.x) * 0.28; f.y += (f.ty - f.y) * 0.28; f.press *= 0.82; f.bad *= 0.93;
-    const shake = f.bad > 0.05 ? Math.sin(t * 60) * 4 * f.bad : 0, r = g.rest[i], kn = g.knuck[i];
-    const tipX = f.x + shake, tipY = f.y + f.press * 4, kx = kn.x + (f.x - r.x) * 0.38, ky = kn.y + (f.y - r.y) * 0.3;
-    const len = Math.hypot(tipX - kx, tipY - ky) || 1, ux = (tipX - kx) / len, uy = (tipY - ky) / len, end = 1 - f.press * 0.08;
-    const ex = kx + (tipX - kx) * end, ey = ky + (tipY - ky) * end;
-    for (const ln of f.el.querySelectorAll('line')) { ln.setAttribute('x1', kx); ln.setAttribute('y1', ky); ln.setAttribute('x2', ex); ln.setAttribute('y2', ey); }
-    const nail = f.el.querySelector('.nail'); nail.setAttribute('cx', ex - ux * 2); nail.setAttribute('cy', ey - uy * 2);
-    nail.setAttribute('transform', `rotate(${Math.atan2(uy, ux) * 180 / Math.PI + 90} ${ex - ux * 2} ${ey - uy * 2})`);
-    f.el.classList.toggle('on', f.on); f.el.classList.toggle('bad', f.bad > 0.15); f.el.classList.toggle('down', f.press > 0.3);
-  });
-  HAND.raf = requestAnimationFrame(handLoop);
-}
-function handStart(){ requestAnimationFrame(() => { handBuild(); if (!HAND.raf) HAND.raf = requestAnimationFrame(handLoop); }); }
+function handAim(){}
+function handPress(){}
+function handStart(){ requestAnimationFrame(handBuild); }
 new ResizeObserver(() => { if (TY.open) handBuild(); }).observe($('#kbd'));
 function coin(t, x, y, big){ const c = document.createElement('span'); c.className = 'coin' + (big ? ' big' : ''); c.textContent = t; c.style.left = x + 'px'; c.style.top = y + 'px'; $('#typing').appendChild(c); setTimeout(() => c.remove(), 1100); }
 function tyEarn(n, el){

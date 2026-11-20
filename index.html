@@ -293,6 +293,15 @@ canvas.drag{cursor:grabbing}
 .follow .fh div{min-width:0;flex:1;font-size:12px;line-height:1.35}
 .follow .fh b{display:block;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .follow .fh div span{color:var(--muted)}
+.shop{position:absolute;left:50%;top:96px;transform:translateX(-50%);z-index:6;width:min(420px,calc(100% - 32px));background:var(--panel);border:2px solid #1f9d55;border-radius:16px;padding:12px 14px;box-shadow:0 10px 32px rgba(0,0,0,.18);display:flex;flex-direction:column;gap:8px}
+.shop .sh{display:flex;align-items:center;gap:10px}.shop .sh b{font-size:16px;flex:1}
+.shop .sbal{background:#ffd84d;border-radius:999px;padding:3px 10px;font-weight:800;font-size:13px}
+.shop .x{border:0;background:var(--soft);border-radius:8px;width:30px;height:30px;font-size:14px;font-weight:800}
+.shop p{margin:0;font-size:13px;text-align:center}.shop .sok{color:#137a40;font-weight:800}.shop .sno{color:#b4541a;font-weight:700}.shop .sate{color:var(--muted)}
+.shop .goods{display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:8px}
+.shop .goods button{border:1px solid var(--line);background:var(--soft);border-radius:12px;padding:8px 4px;display:flex;flex-direction:column;align-items:center;gap:2px;font-family:inherit;color:var(--ink)}
+.shop .goods i{font-style:normal;font-size:28px;line-height:1.1}.shop .goods b{font-size:12px}.shop .goods span{font-size:12px;color:#c98a00;font-weight:800}
+.shop .goods button.poor span{color:#e8503a}.shop .goods button:disabled{opacity:.45}
 .follow .x{border:0;background:var(--soft);border-radius:8px;width:28px;height:28px;font-size:14px;font-weight:800;flex:none}
 .follow .nx{display:grid;grid-template-columns:1fr auto;gap:2px 10px;align-items:baseline;font-size:12px}
 .follow .nx span{color:var(--muted)}
@@ -348,6 +357,7 @@ canvas.drag{cursor:grabbing}
     <section class="follow" id="follow" hidden aria-live="polite"></section>
     <div class="tip" id="tip" hidden></div>
   </div>
+  <section class="shop" id="shop" hidden aria-label="편의점"></section>
   <section class="typing" id="typing" hidden aria-label="타자 충전소">
     <div class="th"><b>⌨️ 타자 충전소</b><span class="tbal" title="지금까지 모은 돈은 도장판에">💳 <b id="tbal">0원</b></span><button class="tstampbtn" id="tstampbtn">🏅 도장판</button><button class="x" id="tsound" aria-label="소리">🔊</button><button class="x" id="tclose" aria-label="충전소 닫기">✕</button></div>
     <div class="th2"><span class="ttot">지금까지 모은 돈 <b id="ttot">0원</b></span></div>
@@ -1029,6 +1039,9 @@ const HOMES = [['할머니네 집', '지후 할머니 집 · 대방동 (서울�
 for (const h of HOMES) if (!OK.marks.some(m => m[0] === h[0])) OK.marks.push(h);
 { const m = OK.marks.find(m => m[0] === '여월휴먼시아 4단지'); // 지후 할머니·할아버지가 사는 곳
   if (m) { m.splice(0, m.length, '여월동 할머니네집', '여월휴먼시아 4단지 · 할머니 할아버지 집', m[2], m[3], 'home', '👵', '할머니'); HOMES.push(m); } }
+// 편의점: 옥길자이아파트.옥길테크노밸리 정류장(양쪽 2475,4169 · 2474,4204) 바로 옆. 지후가 걸어가서 교통카드 돈으로 사 먹는다
+const SHOP = ['편의점', '옥길자이아파트 정류장 옆 · 지후가 간식 사는 곳', 2540, 4186, 'shop'];
+OK.marks.push(SHOP);
 OK.bld.sort((a, b) => Math.max(...a[1].filter((_, i) => i % 2)) - Math.max(...b[1].filter((_, i) => i % 2)));
 const AREA_COL = { ind: '--ind', farm: '--farm', grass: '--grass', resi: '--resi', cons: '--resi', cem: '--park', wood: '--wood', park: '--park', pitch: '--park', school: '--school', park_lot: '--resi', wet: '--water', water: '--water' };
 function inView(f, pad = 40){ for (let i = 0; i < f.length; i += 2) { const x = sx(f[i]), y = sy(f[i + 1]); if (x > -pad && y > -pad && x < W + pad && y < H + pad) return true; } return false; }
@@ -1240,9 +1253,19 @@ function starPath(g, x, y, r){
 function drawMarks(g){
   g.textAlign = 'center';
   for (const [name, sub, x, y, kind] of OK.marks) {
-    const home = kind === 'home', px = sx(x), py = sy(y) - (!home && V.k > 0.16 ? 13 * V.k * 3 * 0.55 * 1.2 : 0); // 건물 지붕 위
+    const home = kind === 'home' || kind === 'shop', px = sx(x), py = sy(y) - (!home && V.k > 0.16 ? 13 * V.k * 3 * 0.55 * 1.2 : 0); // 건물 지붕 위
     if (px < -60 || py < -40 || px > W + 60 || py > H + 40) continue;
     const r = V.k > 0.3 ? 13 : 10;
+    if (kind === 'shop') { // 편의점: 줄무늬 차양 + 유리문
+      const s = r * 1.2;
+      g.beginPath(); g.arc(px, py, s + 4, 0, 7); g.fillStyle = colors['--panel']; g.fill(); g.lineWidth = 2; g.strokeStyle = '#1f9d55'; g.stroke();
+      g.fillStyle = '#ffffff'; g.fillRect(px - s * 0.7, py - s * 0.35, s * 1.4, s * 0.95); g.lineWidth = 1; g.strokeStyle = '#2a4a3a'; g.strokeRect(px - s * 0.7, py - s * 0.35, s * 1.4, s * 0.95);
+      for (let k = 0; k < 4; k++) { g.fillStyle = k % 2 ? '#ffffff' : '#1f9d55'; g.fillRect(px - s * 0.78 + k * s * 0.39, py - s * 0.62, s * 0.39, s * 0.3); }
+      g.fillStyle = '#9fd8ff'; g.fillRect(px - s * 0.5, py - s * 0.18, s * 0.42, s * 0.62); g.fillRect(px + s * 0.08, py - s * 0.18, s * 0.42, s * 0.36);
+      halo(g, '🏪 ' + name, px, py - s - 9, '#137a40', '800 13px', true);
+      if (V.k > 0.3) halo(g, '눌러서 간식 사기', px, py + s + 16, colors['--muted'], '600 11px', true);
+      continue;
+    }
     if (home) { // 집 모양: 빨간 지붕 + 흰 벽 + 문
       const s = r * 1.15;
       g.beginPath(); g.arc(px, py, s + 4, 0, 7); g.fillStyle = colors['--panel']; g.fill(); g.lineWidth = 2; g.strokeStyle = '#e8503a'; g.stroke();
@@ -2680,6 +2703,7 @@ function click(px, py, ptype){
   if (!p) { clearTimeout(clearT); if (S.sel || S.stop) clearT = setTimeout(() => { S.sel = null; S.stop = null; S.follow = null; dirty = true; render(); }, 280); return; }
   if (p.fam) { actx(); famTap(p.fam); }
   else if (p.bus) { followBus(p.bus); sfx('horn'); }
+  else if (p.mark && p.mark[4] === 'shop') { shopOpen(); }
   else if (p.mark) { flyTo(p.mark[2], p.mark[3], Math.max(V.k, 0.6)); toast(p.mark[0] + ' · ' + p.mark[1]); }
   else if (p.train) { followTrain(p.train); sfx('pop'); }
   else if (p.stop) selectStop(p.stop);
@@ -2690,7 +2714,7 @@ function hover(e){
   if (e.pointerType !== 'mouse') return;
   const p = pick(mx(e), my(e));
   if (!p) { tip.hidden = true; return; }
-  tip.textContent = p.fam ? `${p.fam.emo} ${p.fam.name} · 버스나 열차를 눌러 태워 보세요` : p.train ? `${p.train.tr.name} ${p.train.d.to}행 · ${p.train.at >= 0 ? p.train.d.stops[p.train.at].name + '역 정차 중' : '다음 역 ' + p.train.next.name}` : p.mark ? `${p.mark[4] === 'land' ? p.mark[5] + ' ' : p.mark[4] === 'home' ? '🏠 ' : p.mark[4] ? '' : '★ '}${p.mark[0]} · ${p.mark[1]}` : p.bus ? `${p.bus.r.ref}번 ${p.bus.di === 0 ? '가는' : '오는'} 버스 → ${p.bus.r.dirs[p.bus.di].to}${p.bus.last ? ' · 막차' : ''}` : p.stop ? p.stop.name : `${p.route.ref}번 (${p.route.type})`;
+  tip.textContent = p.fam ? `${p.fam.emo} ${p.fam.name} · 버스나 열차를 눌러 태워 보세요` : p.train ? `${p.train.tr.name} ${p.train.d.to}행 · ${p.train.at >= 0 ? p.train.d.stops[p.train.at].name + '역 정차 중' : '다음 역 ' + p.train.next.name}` : p.mark ? `${p.mark[4] === 'land' ? p.mark[5] + ' ' : p.mark[4] === 'home' ? '🏠 ' : p.mark[4] === 'shop' ? '🏪 ' : p.mark[4] ? '' : '★ '}${p.mark[0]} · ${p.mark[1]}` : p.bus ? `${p.bus.r.ref}번 ${p.bus.di === 0 ? '가는' : '오는'} 버스 → ${p.bus.r.dirs[p.bus.di].to}${p.bus.last ? ' · 막차' : ''}` : p.stop ? p.stop.name : `${p.route.ref}번 (${p.route.type})`;
   tip.style.left = mx(e) + 14 + 'px'; tip.style.top = my(e) + 10 + 'px'; tip.hidden = false;
 }
 
@@ -2744,7 +2768,7 @@ function renderHomeTop(){
   const runningRoutes = new Set(vis.map(b => b.r)).size;
   $('#h-top').innerHTML = `
     <div class="stats"><div class="big">${S.favOnly ? vis.length : total}</div><div class="big-l">대 운행 중<br>${runningRoutes}개 노선 · ${S.favOnly ? '즐겨찾기만' : RT.on ? '실시간 + 추정' : '추정 시간표 기준'}</div></div>${RT.on ? `<div class="rt-note">● ${esc(rtStatus())}</div>` : ''}
-    <div class="places">${OK.marks.map((m, i) => `<button class="place" data-mark="${i}"><i>${m[4] === 'home' ? '🏠' : '★'}</i>${esc(m[0])}</button>`).join('')}${REG.map((g, i) => `<button class="place reg" data-reg="${i}"><i>▧</i>${esc(g.name)}</button>`).join('')}${OK.pois.map((m, i) => `<button class="place lib" data-poi="${i}"><i>■</i>${esc(m[0])}</button>`).join('')}<button class="place" data-okgil="1"><i>▲</i>옥길동</button></div>
+    <div class="places">${OK.marks.map((m, i) => `<button class="place" data-mark="${i}"><i>${m[4] === 'home' ? '🏠' : m[4] === 'shop' ? '🏪' : '★'}</i>${esc(m[0])}</button>`).join('')}${REG.map((g, i) => `<button class="place reg" data-reg="${i}"><i>▧</i>${esc(g.name)}</button>`).join('')}${OK.pois.map((m, i) => `<button class="place lib" data-poi="${i}"><i>■</i>${esc(m[0])}</button>`).join('')}<button class="place" data-okgil="1"><i>▲</i>옥길동</button></div>
     <div class="chips"><button class="chip favchip ${S.favOnly ? 'on' : ''}" data-favonly="1" aria-pressed="${S.favOnly}"><span>${S.favOnly ? '★' : '☆'}</span>즐겨찾기만<b>${favs.size}</b></button>${TYPES.filter(t => routes.some(r => r.type === t[0])).map(([n, v]) => `<button class="chip ${filters[n] ? '' : 'off'}" data-type="${n}" style="--c:var(${v})" aria-pressed="${filters[n]}"><i></i>${n}<b>${c[n]}</b></button>`).join('')}</div>`;
 }
 function renderHomeList(){
@@ -3266,6 +3290,7 @@ function famAlight(m, v, why, i = 0){
   if (m === JIHU) { CARD.offT = Date.now(); cardSave(); } else m.flOff = Date.now(); // 30분 안에 다시 타면 환승
   const home = HOMES.find(h => Math.hypot(h[2] - m.x, h[3] - m.y) < 700);
   if (i === 0) famSay(m, home ? `${home[5]} ${home[6]}! 놀러 왔어요~` : why || (v && v.atName ? v.atName + ' 도착!' : '내렸어요!')); else m.text = ''; // 같이 내리면 말풍선은 한 사람만
+  if (m === JIHU && Math.hypot(SHOP[2] - m.x, SHOP[3] - m.y) < SHOP_NEAR) setTimeout(() => { sfx('chime'); toast('🏪 편의점이 바로 옆이에요! 편의점을 눌러 간식을 사 먹어요'); }, 1200);
   if (home && i === 0) setTimeout(() => { sfx('chime'); say(`${home[0]}에 거의 다 왔어요! ${home[6]} 안녕하세요!`); toast(`🏠 ${home[0]} 근처에 내렸어요!`); }, 900);
 }
 function famStep(){
@@ -3473,6 +3498,49 @@ function payFare(id, list = [JIHU]){ // 탈 사람들 요금을 지후 카드에
   sfx('card'); setTimeout(() => toast(`💳 삑! ${list.length > 1 ? list.length + '명 ' : ''}${allTr ? '환승 ' : ''}${won(total)} 냈어요 · 남은 돈 ${won(CARD.bal)}`), 30);
   return allTr ? '환승입니다. ' : list.length > 1 ? '' : fareKind(list[0]) === 'kid' ? '어린이입니다. ' : '';
 }
+
+// 편의점: 지후가 편의점 바로 앞에 걸어와 있을 때(버스에서 내린 상태) 교통카드 돈으로 사 먹는다
+const SHOP_NEAR = 450; // m
+const GOODS = [
+  { id: 'pocari', emo: '🥤', name: '포카리스웨트', price: 2500, say: '캬~ 시원하다!' },
+  { id: 'banana', emo: '🍌', name: '바나나우유', price: 1800, say: '달콤해~' },
+  { id: 'choco', emo: '🍫', name: '초코우유', price: 1500, say: '초코 최고!' },
+  { id: 'water', emo: '💧', name: '생수', price: 900, say: '꿀꺽꿀꺽!' },
+  { id: 'kimbap', emo: '🍙', name: '삼각김밥', price: 1500, say: '배부르다!' },
+  { id: 'ramen', emo: '🍜', name: '컵라면', price: 1500, say: '후루룩~!' },
+  { id: 'icecream', emo: '🍦', name: '아이스크림', price: 1500, say: '차가워~ 맛있어!' },
+  { id: 'jelly', emo: '🍬', name: '젤리', price: 1200, say: '쫀득쫀득!' },
+  { id: 'snack', emo: '🍿', name: '과자', price: 1700, say: '바삭바삭!' },
+  { id: 'sausage', emo: '🌭', name: '소시지', price: 1500, say: '냠냠!' },
+];
+const shopNear = () => !JIHU.ride && Math.hypot(JIHU.x - SHOP[2], JIHU.y - SHOP[3]) < SHOP_NEAR;
+function shopPaint(){
+  const el = $('#shop'); if (el.hidden) return;
+  const near = shopNear(), ate = CARD.ate || {}, eaten = GOODS.filter(g => ate[g.id]);
+  const why = JIHU.ride ? '🚌 지후가 버스에서 내려야 살 수 있어요. 옥길자이아파트 정류장에서 내려요!' : '🚶 지후가 편의점 앞에 와야 살 수 있어요. 옥길자이아파트 정류장에서 내려요!';
+  el.innerHTML = `<div class="sh"><b>🏪 옥길 편의점</b><span class="sbal">💳 ${won(CARD.bal)}</span><button class="x" id="shopx" aria-label="편의점 닫기">✕</button></div>
+    ${near ? '<p class="sok">지후가 편의점에 왔어요! 먹고 싶은 걸 눌러요</p>' : `<p class="sno">${why}</p>`}
+    <div class="goods">${GOODS.map(g => `<button data-buy="${g.id}"${near ? '' : ' disabled'} class="${CARD.bal < g.price ? 'poor' : ''}"><i>${g.emo}</i><b>${g.name}</b><span>${won(g.price)}</span></button>`).join('')}</div>
+    ${eaten.length ? `<p class="sate">지금까지 먹은 것: ${eaten.map(g => `${g.emo}×${ate[g.id]}`).join(' ')}</p>` : ''}`;
+}
+function shopOpen(){ actx(); $('#shop').hidden = false; shopPaint(); if (!shopNear()) flyTo(SHOP[2], SHOP[3], Math.max(V.k, 0.6)); }
+function shopClose(){ $('#shop').hidden = true; }
+function shopBuy(id){
+  const g = GOODS.find(x => x.id === id); if (!g || !shopNear()) { shopPaint(); return; }
+  if (CARD.bal < g.price) {
+    sfx('buzz'); const c = g.name.charCodeAt(g.name.length - 1) - 0xAC00, eun = c >= 0 && c % 28 ? '은' : '는';
+    toast(`💳 돈이 모자라요! ${g.name}${eun} ${won(g.price)}, 지금 ${won(CARD.bal)}. 타자를 쳐서 모아요`); famSay(JIHU, '돈이 모자라…');
+    const b = $('#cardbtn'); b.classList.remove('need'); void b.offsetWidth; b.classList.add('need'); return;
+  }
+  CARD.bal -= g.price; CARD.ate = CARD.ate || {}; CARD.ate[g.id] = (CARD.ate[g.id] || 0) + 1; cardSave(); cardPaint();
+  sfx('card'); setTimeout(() => sfx('yay'), 250); famSay(JIHU, `${g.emo} ${g.say}`);
+  toast(`${g.emo} ${g.name} 샀어요! ${won(g.price)} · 남은 돈 ${won(CARD.bal)}`); shopPaint();
+}
+$('#shop').addEventListener('click', e => {
+  if (e.target.closest('#shopx')) return shopClose();
+  const b = e.target.closest('[data-buy]'); if (b && !b.disabled) shopBuy(b.dataset.buy);
+});
+setInterval(() => { if (!$('#shop').hidden) shopPaint(); }, 1500); // 지후가 걸어오거나 버스에서 내리면 바로 살 수 있게
 
 // 두벌식 자판: 자판 위치 → 글자(Shift 글자)
 const DUB = { KeyQ: 'ㅂㅃ', KeyW: 'ㅈㅉ', KeyE: 'ㄷㄸ', KeyR: 'ㄱㄲ', KeyT: 'ㅅㅆ', KeyY: 'ㅛ', KeyU: 'ㅕ', KeyI: 'ㅑ', KeyO: 'ㅐㅒ', KeyP: 'ㅔㅖ',

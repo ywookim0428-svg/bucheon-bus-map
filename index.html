@@ -253,6 +253,7 @@ canvas.drag{cursor:grabbing}
 .hands{position:absolute;left:0;top:0;width:100%;height:100%;overflow:visible;pointer-events:none;z-index:2;opacity:.5}
 .hands .hout path{fill:#b98361;stroke:#b98361;stroke-width:3;stroke-linejoin:round}
 .hands .hfill path{fill:#f1cfb2;stroke:none}
+.hands .tipglow{fill:rgba(37,99,235,.25);stroke:#2563eb;stroke-width:3}
 .hands .nail{fill:#fbe9dc;stroke:#d9a888;stroke-width:.8}
 .hands .crease{fill:none;stroke:#c99375;stroke-width:1;stroke-linecap:round;opacity:.8}
 .kbd.nope{animation:shake .3s}
@@ -3669,7 +3670,8 @@ function handDraw(){
     handOne(g.home.slice(0, 4), g.thumbs[0], 1, g.p, g.r, [0, 1, 2, 3].map(at), null),
     handOne([7, 6, 5, 4].map(i => g.home[i]), g.thumbs[1], -1, g.p, g.r, [7, 6, 5, 4].map(at), c[8])
   ];
-  HAND.svg.innerHTML = hands.map(h => `<g class="hout">${h.shapes.map(d => `<path d="${d}"/>`).join('')}</g><g class="hfill">${h.shapes.map(d => `<path d="${d}"/>`).join('')}</g><g class="hdet">${h.det}</g>`).join('');
+  const glow = (HAND.act || []).map((on, i) => { if (!on) return ''; const q = at(i); return `<circle class="tipglow" cx="${Math.round(q.x)}" cy="${Math.round(q.y - g.r * 0.12)}" r="${Math.round(g.p * 0.36)}"/>`; }).join('');
+  HAND.svg.innerHTML = hands.map(h => `<g class="hout">${h.shapes.map(d => `<path d="${d}"/>`).join('')}</g><g class="hfill">${h.shapes.map(d => `<path d="${d}"/>`).join('')}</g><g class="hdet">${h.det}</g>`).join('') + glow;
 }
 function handAim(jump){ // 칠 글쇠로 그 손가락을 뻗고(Shift가 필요하면 반대손 새끼손가락은 Shift로), 나머지는 기본 자리로
   const g = HAND.geo; if (!g) return;
@@ -3677,10 +3679,10 @@ function handAim(jump){ // 칠 글쇠로 그 손가락을 뻗고(Shift가 필요
   if (k) {
     const fi = k.code === 'Space' ? 8 : fingerOf(k.code), to = g.key(k.code);
     if (fi === 8 && to) t[8] = { x: 0, y: 0 };
-    else if (fi >= 0 && fi < 8 && to) t[fi] = { x: to.x - g.home[fi].x, y: to.y - g.home[fi].y - g.r * 0.3 }; // 칠 손가락은 글쇠 위로 살짝 든다
+    else if (fi >= 0 && fi < 8 && to) t[fi] = { x: to.x - g.home[fi].x, y: to.y - g.home[fi].y - g.r * 0.45 }; // 칠 손가락은 글쇠 위로 살짝 든다
     if (k.sh) { const left = fi >= 4 && fi < 8, si = left ? 0 : 7, st = g.sh[left ? 0 : 1]; if (st) t[si] = { x: st.x - g.home[si].x + (left ? g.p * 0.25 : -g.p * 0.25), y: st.y - g.home[si].y }; }
   }
-  HAND.tgt = t;
+  HAND.tgt = t; HAND.act = t.map((v, i) => i < 8 && v.y < 0);
   if (jump === true && !HAND.drawn) { HAND.cur = t.map(v => ({ ...v })); HAND.drawn = true; }
   if (!HAND.raf) HAND.raf = requestAnimationFrame(handStep);
 }

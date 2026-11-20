@@ -3251,7 +3251,7 @@ function famSay(m, t){ m.text = t; m.textT = performance.now(); }
 function famBoard(list, id){
   const v = vehOf(id); if (!list.length) return;
   if (!v) { toast('버스 위치를 다시 받는 중이에요. 잠깐 뒤에 다시 눌러 주세요'); return; }
-  const beep = list.includes(JIHU) ? payFare(id) : ''; if (beep === null) return; // 지후는 교통카드로 요금을 낸다
+  const beep = payFare(id, list); if (beep === null) return; // 탈 사람 요금은 모두 지후 교통카드에서
   for (const m of list) { m.ride = id; m.off = false; m.lost = 0; m.text = ''; }
   famSay(list[0], list.length > 1 ? '다 같이 출발~!' : '출발~!'); // 말풍선은 한 사람만 (겹치지 않게)
   sfx('yay');
@@ -3263,7 +3263,7 @@ function famAlight(m, v, why, i = 0){
   const at = v && v.at, off = [[9, 9], [-9, 11], [13, -6], [-13, -4]][i % 4];
   if (v) { m.x = (at ? at.x : v.x) + off[0]; m.y = (at ? at.y : v.y) + off[1]; m.where = (v.atName || v.nextName || '') || m.where; }
   m.ride = null; m.off = false; famSave(m);
-  if (m === JIHU) { CARD.offT = Date.now(); cardSave(); }
+  if (m === JIHU) { CARD.offT = Date.now(); cardSave(); } else m.flOff = Date.now(); // 30분 안에 다시 타면 환승
   const home = HOMES.find(h => Math.hypot(h[2] - m.x, h[3] - m.y) < 700);
   if (i === 0) famSay(m, home ? `${home[5]} ${home[6]}! 놀러 왔어요~` : why || (v && v.atName ? v.atName + ' 도착!' : '내렸어요!')); else m.text = ''; // 같이 내리면 말풍선은 한 사람만
   if (home && i === 0) setTimeout(() => { sfx('chime'); say(`${home[0]}에 거의 다 왔어요! ${home[6]} 안녕하세요!`); toast(`🏠 ${home[0]} 근처에 내렸어요!`); }, 900);
@@ -3300,11 +3300,11 @@ function jihuCard(box){ // 따라가기 카드 아래 버튼: 가족마다 태�
   const out = famHere().filter(m => m.ride !== S.follow), shown = famHere();
   const btn = m => m.ride === S.follow
     ? (m.off ? `<button class="wait" data-fam="stay:${m.key}">${m.emo} ${m.name} 다음에 내려요… (취소)</button>` : `<button class="off" data-fam="off:${m.key}">${m.emo} ${m.name} 내릴래요!</button>`)
-    : `<button data-fam="on:${m.key}">${m.emo} ${m.name} 태우기${m.ride ? ' (갈아타기)' : ''}${m === JIHU ? `<small class="fare">💳 ${fareLabel(S.follow)}</small>` : ''}</button>`;
+    : `<button data-fam="on:${m.key}">${m.emo} ${m.name} 태우기${m.ride ? ' (갈아타기)' : ''}<small class="fare">💳 ${fareLabel(S.follow, m)}</small></button>`;
   const aboard = riders(S.follow), staying = aboard.filter(m => !m.off);
   const rel = FAM.filter(m => m.home && m.ride !== S.follow); // 친척은 어디에 있든 한꺼번에 태울 수 있다
-  const allRel = rel.length ? `<button class="all rel" data-fam="allrel">👵👴👧 친척 ${rel.length === FAM.filter(m => m.home).length ? '다 같이' : '모두'} 태우기<small class="fare">${rel.map(m => m.name).join(' · ')}</small></button>` : '';
-  const allOn = out.length > 1 ? `<button class="all" data-fam="all">👨‍👩‍👦‍👦 ${out.length >= 4 ? '다 같이' : '모두'} 태우기</button>` : '';
+  const allRel = rel.length ? `<button class="all rel" data-fam="allrel">👵👴👧 친척 ${rel.length === FAM.filter(m => m.home).length ? '다 같이' : '모두'} 태우기<small class="fare">${rel.map(m => m.name).join(' · ')} · 💳 ${won(fareSum(S.follow, rel))}</small></button>` : '';
+  const allOn = out.length > 1 ? `<button class="all" data-fam="all">👨‍👩‍👦‍👦 ${out.length >= 4 ? '다 같이' : '모두'} 태우기<small class="fare">💳 ${won(fareSum(S.follow, out))}</small></button>` : '';
   const allOff = staying.length > 1 ? `<button class="all off" data-fam="alloff">👨‍👩‍👦‍👦 ${staying.length >= 4 ? '다 같이' : '모두'} 내릴래요!</button>`
     : aboard.length > 1 && !staying.length ? '<button class="all wait" data-fam="allstay">👨‍👩‍👦‍👦 다 같이 다음에 내려요… (취소)</button>' : '';
   box.insertAdjacentHTML('beforeend', `<div class="jihu">${shown.map(btn).join('')}${allOn}${allRel}${allOff}</div>`);
@@ -3443,25 +3443,35 @@ function cardPaint(){
   const t = $('#tbal'); if (t) { t.textContent = won(CARD.bal); $('#ttot').textContent = won(CARD.total); t.parentNode.style.background = bg; }
 }
 const TRANSFER_MS = 30 * 60000;
-const FARE = { train: 550, village: 830, bus: 830, seat: 1000 }; // 어린이 교통카드 요금: 수도권 지하철 550원(2025.6~), 부천 마을버스 830원(2026.7~), 일반 시내버스 830원, 좌석·광역 1,000원
-function fareOf(id){ // 지후 요금. 30분 안에 갈아타면 차액만
+// 요금(교통카드): 어린이(지후·다윤이) 지하철 550원(2025.6~)·마을/일반버스 830원·좌석/광역 1,000원,
+// 어른 버스 1,650원·지하철 1,550원, 지안이는 아기라 공짜. 같이 타는 사람 요금도 모두 지후 카드에서 낸다
+const FARE = { kid: { train: 550, village: 830, bus: 830, seat: 1000 }, adult: { train: 1550, village: 1650, bus: 1650, seat: 1650 } };
+const fareKind = m => m.key === 'jian' ? 'free' : m.key === 'jihu' || m.key === 'dayun' ? 'kid' : 'adult';
+function fareOf(id, m = JIHU){ // 한 사람 요금. 30분 안에 갈아타면 차액만
   const v = vehOf(id); if (!v) return null;
-  const fare = v.kind === 'train' ? FARE.train : v.b.r.type === '마을' ? FARE.village : /좌석|광역|공항/.test(v.b.r.type) ? FARE.seat : FARE.bus;
-  const tr = !!(JIHU.ride || CARD.last && CARD.offT >= CARD.last.t && Date.now() - CARD.offT < TRANSFER_MS);
-  return { fare, tr, pay: tr ? Math.max(0, fare - (CARD.last ? CARD.last.fare : 0)) : fare };
+  const k = fareKind(m); if (k === 'free') return { fare: 0, tr: false, pay: 0, free: true };
+  const T = FARE[k], fare = v.kind === 'train' ? T.train : v.b.r.type === '마을' ? T.village : /좌석|광역|공항/.test(v.b.r.type) ? T.seat : T.bus;
+  const last = m === JIHU ? CARD.last : m.fl, offT = m === JIHU ? CARD.offT : m.flOff || 0;
+  const tr = !!(m.ride || last && offT >= last.t && Date.now() - offT < TRANSFER_MS);
+  return { fare, tr, pay: tr ? Math.max(0, fare - (last ? last.fare : 0)) : fare };
 }
-function fareLabel(id){ const f = fareOf(id); return !f ? '' : f.tr ? (f.pay ? `환승 +${won(f.pay)}` : '환승 무료') : won(f.pay); }
-function payFare(id){ // 지후 요금 내기. 모자라면 null
-  const f = fareOf(id); if (!f) return '';
-  if (CARD.bal < f.pay) {
+function fareLabel(id, m = JIHU){ const f = fareOf(id, m); return !f ? '' : f.free ? '공짜' : f.tr ? (f.pay ? `환승 +${won(f.pay)}` : '환승 무료') : won(f.pay); }
+const fareSum = (id, list) => list.reduce((a, m) => a + ((fareOf(id, m) || {}).pay || 0), 0);
+function payFare(id, list = [JIHU]){ // 탈 사람들 요금을 지후 카드에서 한꺼번에 낸다. 모자라면 null
+  const fs = list.map(m => [m, fareOf(id, m)]).filter(x => x[1]); if (!fs.length) return '';
+  const total = fs.reduce((a, x) => a + x[1].pay, 0);
+  if (CARD.bal < total) {
     sfx('buzz'); say('잔액이 부족합니다. 타자를 쳐서 돈을 모아 보자');
-    toast(`💳 돈이 모자라요! 지금 ${won(CARD.bal)}, ${won(f.pay)}이 필요해요. 💳 카드를 눌러 타자 쳐서 모으자`);
+    toast(`💳 돈이 모자라요! 지금 ${won(CARD.bal)}, ${list.length > 1 ? list.length + '명 ' : ''}${won(total)}이 필요해요. 💳 카드를 눌러 타자 쳐서 모으자`);
     famSay(JIHU, '돈이 모자라…'); const b = $('#cardbtn'); b.classList.remove('need'); void b.offsetWidth; b.classList.add('need');
     return null;
   }
-  CARD.bal -= f.pay; CARD.last = { t: Date.now(), fare: f.tr && CARD.last ? Math.max(f.fare, CARD.last.fare) : f.fare }; cardSave(); cardPaint();
-  sfx('card'); setTimeout(() => toast(`💳 삑! ${f.tr ? '환승 ' : ''}${won(f.pay)} 냈어요 · 남은 돈 ${won(CARD.bal)}`), 30);
-  return f.tr ? '환승입니다. ' : '어린이입니다. ';
+  const now = Date.now();
+  for (const [m, f] of fs) { if (f.free) continue; const prev = m === JIHU ? CARD.last : m.fl, nx = { t: now, fare: f.tr && prev ? Math.max(f.fare, prev.fare) : f.fare }; if (m === JIHU) CARD.last = nx; else m.fl = nx; }
+  CARD.bal -= total; cardSave(); cardPaint();
+  const allTr = fs.every(x => x[1].tr || x[1].free);
+  sfx('card'); setTimeout(() => toast(`💳 삑! ${list.length > 1 ? list.length + '명 ' : ''}${allTr ? '환승 ' : ''}${won(total)} 냈어요 · 남은 돈 ${won(CARD.bal)}`), 30);
+  return allTr ? '환승입니다. ' : list.length > 1 ? '' : fareKind(list[0]) === 'kid' ? '어린이입니다. ' : '';
 }
 
 // 두벌식 자판: 자판 위치 → 글자(Shift 글자)

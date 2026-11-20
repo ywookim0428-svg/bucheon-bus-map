@@ -3677,7 +3677,7 @@ function handAim(jump){ // 칠 글쇠로 그 손가락을 뻗고(Shift가 필요
   if (k) {
     const fi = k.code === 'Space' ? 8 : fingerOf(k.code), to = g.key(k.code);
     if (fi === 8 && to) t[8] = { x: 0, y: 0 };
-    else if (fi >= 0 && fi < 8 && to) t[fi] = { x: to.x - g.home[fi].x, y: to.y - g.home[fi].y };
+    else if (fi >= 0 && fi < 8 && to) t[fi] = { x: to.x - g.home[fi].x, y: to.y - g.home[fi].y - g.r * 0.3 }; // 칠 손가락은 글쇠 위로 살짝 든다
     if (k.sh) { const left = fi >= 4 && fi < 8, si = left ? 0 : 7, st = g.sh[left ? 0 : 1]; if (st) t[si] = { x: st.x - g.home[si].x + (left ? g.p * 0.25 : -g.p * 0.25), y: st.y - g.home[si].y }; }
   }
   HAND.tgt = t;
@@ -3687,11 +3687,16 @@ function handAim(jump){ // 칠 글쇠로 그 손가락을 뻗고(Shift가 필요
 function handStep(){ // 부드럽게 다가가고, 다 오면 멈춘다
   HAND.raf = 0; if (!HAND.geo || !HAND.tgt) return;
   let moving = false;
-  HAND.cur.forEach((c, i) => { const t = HAND.tgt[i], dx = t.x - c.x, dy = t.y - c.y; if (Math.abs(dx) + Math.abs(dy) > 0.3) { c.x += dx * 0.3; c.y += dy * 0.3; moving = true; } else { c.x = t.x; c.y = t.y; } });
+  HAND.cur.forEach((c, i) => { const t = HAND.tgt[i], dx = t.x - c.x, dy = t.y - c.y; if (Math.abs(dx) + Math.abs(dy) > 0.3) { c.x += dx * 0.22; c.y += dy * 0.22; moving = true; } else { c.x = t.x; c.y = t.y; } });
   handDraw();
   if (moving && TY.open) HAND.raf = requestAnimationFrame(handStep);
 }
-function handPress(code){ const el = $(`#kbd [data-code="${code}"]`); if (!el) return; el.classList.remove('press'); void el.offsetWidth; el.classList.add('press'); setTimeout(() => el.classList.remove('press'), 140); }
+function handPress(code){ // 누른 손가락이 글쇠를 꾹 누르고, 다음 자리로 간다
+  const el = $(`#kbd [data-code="${code}"]`); if (el) { el.classList.remove('press'); void el.offsetWidth; el.classList.add('press'); setTimeout(() => el.classList.remove('press'), 140); }
+  const g = HAND.geo, fi = code === 'Space' ? 8 : fingerOf(code), to = g && g.key(code); if (!g || fi < 0 || !to || !HAND.cur) return;
+  HAND.cur[fi] = fi === 8 ? { x: 0, y: g.r * 0.12 } : { x: to.x - g.home[fi].x, y: to.y - g.home[fi].y + g.r * 0.1 };
+  if (!HAND.raf) HAND.raf = requestAnimationFrame(handStep);
+}
 function handStart(){ requestAnimationFrame(handBuild); }
 new ResizeObserver(() => { if (TY.open) handBuild(); }).observe($('#kbd'));
 function coin(t, x, y, big){ const c = document.createElement('span'); c.className = 'coin' + (big ? ' big' : ''); c.textContent = t; c.style.left = x + 'px'; c.style.top = y + 'px'; $('#typing').appendChild(c); setTimeout(() => c.remove(), 1100); }

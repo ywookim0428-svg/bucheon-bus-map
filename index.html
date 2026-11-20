@@ -223,6 +223,13 @@ canvas.drag{cursor:grabbing}
 .tdots{display:inline-flex;gap:3px;margin-left:8px;vertical-align:middle}
 .tdots i{width:9px;height:9px;border-radius:50%;background:var(--line)}
 .tdots i.on{background:#ffb300}
+.tchal{margin-top:4px}
+.tchal.ok{color:#13703f;font-weight:800}
+#tchbtn{border:0;background:#ff7a1a;color:#fff;font-weight:800;border-radius:999px;padding:8px 16px;font-size:15px;font-family:inherit;box-shadow:0 3px 0 #c95500;cursor:pointer}
+.tcombo.tch{color:var(--ink);font-size:15px;display:flex;align-items:center;justify-content:center;gap:10px}
+.tbar{display:inline-block;width:150px;height:10px;border-radius:5px;background:var(--line);overflow:hidden}
+.tbar i{display:block;height:100%;background:#2bb673;transition:width .2s linear}
+.tcombo.hurry b{color:#e8503a}.tcombo.hurry .tbar i{background:#e8503a}
 .ttarget{display:flex;justify-content:center;flex-wrap:wrap;gap:6px;min-height:70px;align-items:center}
 .ttarget.shake{animation:shake .3s}
 @keyframes shake{25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
@@ -3417,15 +3424,16 @@ function loop(now){
 /* ---------- 지후 교통카드 + 타자 충전소 ----------
    지후가 버스·열차를 타려면 교통카드에 돈이 있어야 한다(어린이 요금). 돈은 「타자 충전소」에서 타자를 쳐야만 모인다.
    충전소를 열면 목록이 접히고 화면 왼쪽 절반에 뜬다(오른쪽에서는 지도가 계속 움직인다).
-   단계: 왼손 자리 → 오른손 자리 → 집게손가락 뻗기(ㅎ ㅗ) → 윗줄 자음 → 윗줄 모음 → 아랫줄 → 쌍자음
-         → 받침 없는 글자 → 받침 있는 글자 → 겹모음 → 낱말 → 역 이름 → 버스 번호 → 안내방송.
-   한 단계에서 10번 맞히면 다음 단계가 열리고 도장을 받는다. 도장을 모으면 지후 꾸미기·카드 무늬가 열린다.
-   안 틀리고 3번 연속 맞히면 동전 2배(콤보). 자주 틀리는 글쇠는 기억했다가 더 자주 낸다.
+   단계(24개): 자리 익히기(왼손·오른손·두 손·집게·윗줄·아랫줄·모든 자모·쌍자음) → 글자(받침 없는·있는·쌍자음·겹모음)
+         → 낱말(두·세 글자, 가족, 동물, 음식, 역, 부천 동네, 버스 번호) → 짧은 안내방송 → 안내방송.
+   한 단계를 5번 연습하면 「⏱️ 도장 도전」이 열린다: 60초 안에 목표만큼 맞혀야 도장을 받고 다음 단계가 열린다.
+   도장을 모으면 지후 꾸미기·카드 무늬가 열린다. 안 틀리고 5번 연속 맞히면 동전 2배(콤보). 자주 틀리는 글쇠는 기억했다가 더 자주 낸다.
    틀린 글쇠는 입력되지 않고 눌러야 할 글쇠가 반짝인다(지우기를 몰라도 된다).
    키보드가 한글/영어 어느 쪽이든 누른 자판 위치(두벌식)로 판단한다. 기록은 이 기기에만 저장. */
-const CARD = { bal: 0, total: 0, prog: {}, cur: 0, last: null, offT: 0, weak: {}, look: {} };
+const CARD = { bal: 0, total: 0, prog: {}, pass: {}, ver: 0, cur: 0, last: null, offT: 0, weak: {}, look: {} };
 try { Object.assign(CARD, JSON.parse(localStorage.getItem('bucheon-bus-card') || '{}')); } catch (_) {}
-if (!CARD.weak) CARD.weak = {}; if (!CARD.look) CARD.look = {};
+if (!CARD.weak) CARD.weak = {}; if (!CARD.look) CARD.look = {}; if (!CARD.pass) CARD.pass = {};
+if ((CARD.ver || 1) < 2) { CARD.prog = {}; CARD.pass = {}; CARD.cur = 0; CARD.ver = 2; try { localStorage.setItem('bucheon-bus-card', JSON.stringify(CARD)); } catch (_) {} } // 새 규칙(도장 도전): 단계는 처음부터
 const cardSave = () => { try { localStorage.setItem('bucheon-bus-card', JSON.stringify(CARD)); } catch (_) {} };
 const won = n => n.toLocaleString('ko-KR') + '원';
 const CARDCOL = { yellow: '#ffd84d', sky: '#8fd3ff', pink: '#ffb3c6', mint: '#9be8bd', gold: 'linear-gradient(135deg,#fff3a8,#e8b923 45%,#fff3a8 60%,#c9961a)' };
@@ -3485,36 +3493,54 @@ const tpick = a => a[Math.floor(Math.random() * a.length)];
 let STATIONS = null;
 const stations = () => STATIONS || (STATIONS = [...new Set(TRAINS.flatMap(t => t.dirs.flatMap(d => d.stops.map(s => s.name))))].filter(s => /^[가-힣]{2,6}$/.test(s)));
 const busNos = () => [...new Set(routes.map(r => r.ref))].filter(s => /^[0-9]{1,4}(-[0-9]{1,2})?$/.test(s));
-const TSTAGES = [
-  { id: 'a1', icon: '🤚', name: '왼손 자리', tip: '왼손 네 손가락을 ㅁ ㄴ ㅇ ㄹ 에 올려요 (ㄹ에 볼록 표시)', kind: 'keys', set: 'ㅁㄴㅇㄹ', per: 20 },
-  { id: 'a2', icon: '✋', name: '오른손 자리', tip: '오른손을 ㅓ ㅏ ㅣ 에 올려요 (ㅓ에 볼록 표시)', kind: 'keys', set: 'ㅓㅏㅣ', review: 'ㅁㄴㅇㄹ', rv: 0.35, per: 20 },
-  { id: 'a3', icon: '👉', name: '집게손가락 뻗기', tip: '왼손 집게는 옆으로 ㅎ, 오른손 집게는 옆으로 ㅗ', kind: 'keys', set: 'ㅎㅗ', review: 'ㅁㄴㅇㄹㅓㅏㅣ', rv: 0.5, per: 20 },
-  { id: 'a4', icon: '⬆️', name: '윗줄 자음', tip: '왼손을 위로: ㅂ ㅈ ㄷ ㄱ ㅅ', kind: 'keys', set: 'ㅂㅈㄷㄱㅅ', review: 'ㅁㄴㅇㄹㅎ', rv: 0.3, per: 20 },
-  { id: 'a5', icon: '⤴️', name: '윗줄 모음', tip: '오른손을 위로: ㅛ ㅕ ㅑ ㅐ ㅔ', kind: 'keys', set: 'ㅛㅕㅑㅐㅔ', review: 'ㅓㅏㅣㅗ', rv: 0.3, per: 20 },
-  { id: 'a6', icon: '⬇️', name: '아랫줄', tip: '손가락을 아래로: ㅋ ㅌ ㅊ ㅍ · ㅠ ㅜ ㅡ', kind: 'keys', set: 'ㅋㅌㅊㅍㅠㅜㅡ', review: 'ㅁㄴㅇㄹㅓㅏㅣ', rv: 0.25, per: 20 },
-  { id: 'a7', icon: '⇧', name: '쌍자음', tip: 'Shift를 누른 채로 ㅂ → ㅃ, ㅐ → ㅒ', kind: 'keys', set: 'ㅃㅉㄸㄲㅆㅒㅖ', per: 30 },
-  { id: 's1', icon: '가', name: '받침 없는 글자', tip: '자음 다음에 모음: ㄱ + ㅏ = 가', kind: 'syl', n: 3, per: 50,
+const TSTAGES = [ // goal: 도장 도전(dur초, 기본 60초) 안에 맞혀야 할 수, u: 세는 말
+  { id: 'a1', icon: '🤚', name: '왼손 자리', tip: '왼손 네 손가락을 ㅁ ㄴ ㅇ ㄹ 에 올려요 (ㄹ에 볼록 표시)', kind: 'keys', set: 'ㅁㄴㅇㄹ', per: 5, goal: 15, u: '글쇠' },
+  { id: 'a2', icon: '✋', name: '오른손 자리', tip: '오른손을 ㅓ ㅏ ㅣ 에 올려요 (ㅓ에 볼록 표시)', kind: 'keys', set: 'ㅓㅏㅣ', review: 'ㅁㄴㅇㄹ', rv: 0.35, per: 5, goal: 15, u: '글쇠' },
+  { id: 'b1', icon: '🙌', name: '두 손 같이', tip: '두 손을 다 올려요: ㅁ ㄴ ㅇ ㄹ · ㅓ ㅏ ㅣ', kind: 'keys', set: 'ㅁㄴㅇㄹㅓㅏㅣ', per: 5, goal: 18, u: '글쇠' },
+  { id: 'a3', icon: '👉', name: '집게손가락 뻗기', tip: '왼손 집게는 옆으로 ㅎ, 오른손 집게는 옆으로 ㅗ', kind: 'keys', set: 'ㅎㅗ', review: 'ㅁㄴㅇㄹㅓㅏㅣ', rv: 0.5, per: 5, goal: 15, u: '글쇠' },
+  { id: 'a4', icon: '⬆️', name: '윗줄 자음', tip: '왼손을 위로: ㅂ ㅈ ㄷ ㄱ ㅅ', kind: 'keys', set: 'ㅂㅈㄷㄱㅅ', review: 'ㅁㄴㅇㄹㅎ', rv: 0.3, per: 5, goal: 15, u: '글쇠' },
+  { id: 'a5', icon: '⤴️', name: '윗줄 모음', tip: '오른손을 위로: ㅛ ㅕ ㅑ ㅐ ㅔ', kind: 'keys', set: 'ㅛㅕㅑㅐㅔ', review: 'ㅓㅏㅣㅗ', rv: 0.3, per: 5, goal: 15, u: '글쇠' },
+  { id: 'b2', icon: '🔝', name: '윗줄 다 섞기', tip: '윗줄 자음·모음을 섞어서', kind: 'keys', set: 'ㅂㅈㄷㄱㅅㅛㅕㅑㅐㅔ', review: 'ㅁㄴㅇㄹㅎㅗㅓㅏㅣ', rv: 0.2, per: 5, goal: 15, u: '글쇠' },
+  { id: 'a6', icon: '⬇️', name: '아랫줄', tip: '손가락을 아래로: ㅋ ㅌ ㅊ ㅍ · ㅠ ㅜ ㅡ', kind: 'keys', set: 'ㅋㅌㅊㅍㅠㅜㅡ', review: 'ㅁㄴㅇㄹㅓㅏㅣ', rv: 0.25, per: 5, goal: 15, u: '글쇠' },
+  { id: 'b3', icon: '🔤', name: '모든 자모', tip: '윗줄·가운데줄·아랫줄 전부!', kind: 'keys', set: 'ㅂㅈㄷㄱㅅㅛㅕㅑㅐㅔㅁㄴㅇㄹㅎㅗㅓㅏㅣㅋㅌㅊㅍㅠㅜㅡ', per: 5, goal: 15, u: '글쇠' },
+  { id: 'a7', icon: '⇧', name: '쌍자음', tip: 'Shift를 누른 채로 ㅂ → ㅃ, ㅐ → ㅒ', kind: 'keys', set: 'ㅃㅉㄸㄲㅆㅒㅖ', per: 8, goal: 10, u: '글쇠' },
+  { id: 's1', icon: '가', name: '받침 없는 글자', tip: '자음 다음에 모음: ㄱ + ㅏ = 가', kind: 'syl', n: 3, per: 10, goal: 8, u: '글자',
     list: '가나다라마바사아자차카타파하고노도로모보소오조초코토포호구누두루무부수우주추쿠투푸후기니디리미비시이지치키티피히버스너어저거서허그드크트프뇨요교표휴유규뮤개내대배새재해게네데베세레' },
-  { id: 's2', icon: '각', name: '받침 있는 글자', tip: '자음 + 모음 + 받침: ㅇ + ㅕ + ㄱ = 역', kind: 'syl', n: 3, per: 70,
+  { id: 's2', icon: '각', name: '받침 있는 글자', tip: '자음 + 모음 + 받침: ㅇ + ㅕ + ㄱ = 역', kind: 'syl', n: 3, per: 15, goal: 6, u: '글자',
     list: '역선철곡강산물별밥집문길꽃공책눈달손발잠김밤북국숲섬탑학빵떡딸곰콩용봄불말돌삼일칠팔' },
-  { id: 's3', icon: '과', name: '겹모음', tip: '모음 두 개를 이어서: ㅗ+ㅏ = ㅘ, ㅜ+ㅓ = ㅝ, ㅡ+ㅣ = ㅢ', kind: 'syl', n: 2, per: 80,
+  { id: 's4', icon: '까', name: '쌍자음 글자', tip: 'Shift + ㄱ = ㄲ, 그다음 모음: 까', kind: 'syl', n: 3, per: 12, goal: 7, u: '글자',
+    list: '까꼬꾸끼따또뚜띠빠뽀뿌삐싸쏘쑤씨짜쪼쭈찌' },
+  { id: 's3', icon: '과', name: '겹모음', tip: '모음 두 개를 이어서: ㅗ+ㅏ = ㅘ, ㅜ+ㅓ = ㅝ, ㅡ+ㅣ = ㅢ', kind: 'syl', n: 2, per: 20, goal: 5, u: '글자',
     list: '과와화좌봐귀위쥐뒤튀의희외회괴왜웨원권관광왕환횡' },
-  { id: 'w1', icon: '🚌', name: '낱말', tip: '글자를 이어서 낱말을 쳐요', kind: 'word', per: 100,
-    list: ['버스', '기차', '지하철', '지후', '지안', '엄마', '아빠', '우리', '학교', '친구', '바퀴', '기사', '환승', '카드', '창문', '의자', '하차벨', '손잡이', '운전', '출발', '도착', '노선', '부천', '서울', '인천', '종점', '막차', '첫차', '열차', '신호등', '택시', '자전거', '비행기', '경찰차', '소방차', '구급차', '사과', '바나나', '포도', '우유', '과자', '공룡', '축구', '사랑해', '정류장', '횡단보도'] },
-  { id: 'w2', icon: '🚉', name: '역 이름', tip: '진짜 지하철역 이름이에요', kind: 'word', per: 100, list: null },
-  { id: 'n1', icon: '🔢', name: '버스 번호', tip: '맨 윗줄 숫자 글쇠! 5-4 의 - 는 0 옆에 있어요', kind: 'word', per: 0, item: 200, list: null },
-  { id: 't1', icon: '📢', name: '안내방송', tip: '띄어쓰기는 가장 긴 글쇠(스페이스)', kind: 'sent', per: 100, item: 300 },
+  { id: 'w0', icon: '🚌', name: '두 글자 낱말', tip: '글자 두 개를 이어서 쳐요', kind: 'word', per: 20, goal: 5, u: '낱말',
+    list: ['버스', '기차', '지후', '지안', '엄마', '아빠', '우리', '학교', '친구', '바퀴', '기사', '환승', '카드', '창문', '의자', '운전', '출발', '도착', '노선', '부천', '서울', '인천', '종점', '막차', '첫차', '열차', '택시', '하늘', '구름', '나무', '바다', '축구', '공룡'] },
+  { id: 'w1', icon: '🚇', name: '세 글자 낱말', tip: '글자 세 개를 이어서 쳐요', kind: 'word', per: 20, goal: 4, u: '낱말',
+    list: ['지하철', '하차벨', '손잡이', '신호등', '자전거', '비행기', '경찰차', '소방차', '구급차', '바나나', '사랑해', '정류장', '운전사', '놀이터', '유치원', '무지개', '도서관', '편의점', '기차역', '버스비', '환승역', '안내판'] },
+  { id: 'f1', icon: '👨‍👩‍👦', name: '우리 가족', tip: '우리 가족 이름을 쳐요', kind: 'word', per: 20, goal: 4, u: '낱말',
+    list: ['지후', '지안', '엄마', '아빠', '할머니', '할아버지', '함다윤', '다윤이누나', '이모', '이모부', '여월동', '대방동', '우리집'] },
+  { id: 'z1', icon: '🦁', name: '동물 이름', tip: '동물 이름을 쳐요', kind: 'word', per: 20, goal: 4, u: '낱말',
+    list: ['사자', '호랑이', '코끼리', '기린', '토끼', '강아지', '고양이', '다람쥐', '펭귄', '하마', '악어', '여우', '늑대', '돌고래', '상어', '고래', '거북이', '오리', '병아리', '원숭이', '얼룩말', '판다', '공룡'] },
+  { id: 'z2', icon: '🍎', name: '과일과 음식', tip: '맛있는 것 이름을 쳐요', kind: 'word', per: 20, goal: 4, u: '낱말',
+    list: ['사과', '바나나', '포도', '딸기', '수박', '참외', '복숭아', '귤', '키위', '망고', '우유', '과자', '김밥', '떡볶이', '라면', '피자', '치킨', '빵', '주스', '아이스크림'] },
+  { id: 'w2', icon: '🚉', name: '역 이름', tip: '진짜 지하철역 이름이에요', kind: 'word', per: 20, goal: 4, u: '낱말', list: null },
+  { id: 'p1', icon: '🏙️', name: '부천 동네', tip: '우리 동네 이름이에요', kind: 'word', per: 20, goal: 4, u: '낱말',
+    list: ['부천시청', '부천역', '소사역', '역곡역', '송내역', '중동', '상동', '심곡동', '원미산', '여월동', '오정동', '고강동', '춘의동', '도당산', '범박동', '괴안동', '작동', '소사구', '원미구', '오정구', '까치울', '신중동'] },
+  { id: 'n1', icon: '🔢', name: '버스 번호', tip: '맨 윗줄 숫자 글쇠! 5-4 의 - 는 0 옆에 있어요', kind: 'word', per: 0, item: 50, goal: 5, u: '번호', list: null },
+  { id: 't0', icon: '🔈', name: '짧은 안내방송', tip: '띄어쓰기는 가장 긴 글쇠(스페이스)', kind: 'word', per: 10, item: 30, goal: 3, u: '문장',
+    list: ['출발합니다', '문 닫습니다', '꼭 잡으세요', '어서 오세요', '안녕하세요', '고맙습니다', '버스 왔다', '카드 찍어요', '다음 역', '내려요', '조심하세요', '지후 출발'] },
+  { id: 't1', icon: '📢', name: '안내방송', tip: '띄어쓰기는 가장 긴 글쇠(스페이스)', kind: 'sent', per: 10, item: 100, goal: 1, dur: 90, u: '문장' },
 ];
-const NEED = 10; // 다음 단계가 열리는 맞힌 수
-const unlocked = i => i === 0 || (CARD.prog[TSTAGES[i - 1].id] || 0) >= NEED;
-const stamps = () => TSTAGES.filter(s => (CARD.prog[s.id] || 0) >= NEED).length;
+const PRAC = 5; // 이만큼 연습하면 「도장 도전」을 할 수 있다
+const unlocked = i => i === 0 || !!CARD.pass[TSTAGES[i - 1].id];
+const stamps = () => TSTAGES.filter(s => CARD.pass[s.id]).length;
+const chUnit = st => st.kind === 'keys' || st.kind === 'syl' ? 'slot' : 'item'; // 도전에서 세는 단위: 글쇠·글자 하나 / 문제 하나
 
 // 도장 선물: 도장을 모으면 지후 꾸미기·카드 무늬가 열린다
 const GIFTS = [
   { n: 3, key: 'hat', icon: '🧢', name: '지후 모자 색', opts: ['#ffd21f', '#ff5a5a', '#3d8bfd', '#2bb673', '#a066e8', '#ff8ad1'] },
   { n: 6, key: 'bag', icon: '🎒', name: '지후 가방 색', opts: ['#e8503a', '#3d8bfd', '#2bb673', '#ffb300', '#7a4fd6', '#333333'] },
-  { n: 9, key: 'card', icon: '💳', name: '교통카드 무늬', opts: ['yellow', 'sky', 'pink', 'mint'] },
-  { n: 12, key: 'glasses', icon: '😎', name: '지후 안경 쓰기', opts: ['off', 'on'] },
+  { n: 10, key: 'card', icon: '💳', name: '교통카드 무늬', opts: ['yellow', 'sky', 'pink', 'mint'] },
+  { n: 15, key: 'glasses', icon: '😎', name: '지후 안경 쓰기', opts: ['off', 'on'] },
   { n: TSTAGES.length, key: 'card', icon: '🏆', name: '황금 교통카드', opts: ['gold'] },
 ];
 function lookApply(){ const L = CARD.look; if (L.hat) JIHU.hat = L.hat; if (L.bag) JIHU.bag = L.bag; JIHU.glasses = L.glasses === 'on'; cardPaint(); }
@@ -3558,25 +3584,32 @@ const TY = { open: false, st: 0, item: null, si: 0, ki: 0, miss: 0, busy: false,
 function tySay(t){ if (!SND.on || !window.speechSynthesis) return; speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(t); u.lang = 'ko-KR'; u.rate = 0.95; u.pitch = 1.1; speechSynthesis.speak(u); }
 function tyNew(quiet){
   const st = TSTAGES[TY.st]; TY.item = stageItem(st, TY.item && TY.item.text); TY.si = 0; TY.ki = 0; TY.miss = 0; TY.busy = false;
-  const was = TY.mult; TY.mult = TY.combo >= 2 ? 2 : 1; // 안 틀리고 2번 연속 맞혔으면 3번째부터 동전 2배
+  const was = TY.mult; TY.mult = TY.combo >= 4 ? 2 : 1; // 안 틀리고 4번 연속 맞혔으면 5번째부터 동전 2배
   if (TY.mult > 1 && was < 2) { sfx('combo'); }
   tyPaint(); // 문제는 읽어 주지 않는다
 }
 function tyStage(i){
-  if (!unlocked(i)) { sfx('buzz'); toast(`🔒 「${TSTAGES[i - 1].name}」을 ${NEED}번 맞히면 열려요`); return; }
+  if (!unlocked(i)) { sfx('buzz'); toast(`🔒 「${TSTAGES[i - 1].name}」 도장 도전을 통과하면 열려요`); return; }
+  chStop();
   TY.st = CARD.cur = i; cardSave(); tyView('type'); tyStages(); tyNew();
 }
 function tyStages(){
-  $('#tstages').innerHTML = TSTAGES.map((s, i) => { const p = Math.min(NEED, CARD.prog[s.id] || 0), lock = !unlocked(i);
-    return `<button data-st="${i}" class="${i === TY.st && TY.view === 'type' ? 'on' : ''}${lock ? ' lock' : ''}"><i>${lock ? '🔒' : p >= NEED ? '⭐' : s.icon}</i>${s.name}<small>${lock ? '잠김' : p >= NEED ? '다 했어요' : p + ' / ' + NEED}</small></button>`; }).join('');
+  $('#tstages').innerHTML = TSTAGES.map((s, i) => { const p = Math.min(PRAC, CARD.prog[s.id] || 0), lock = !unlocked(i), pass = !!CARD.pass[s.id];
+    return `<button data-st="${i}" class="${i === TY.st && TY.view === 'type' ? 'on' : ''}${lock ? ' lock' : ''}"><i>${lock ? '🔒' : pass ? '⭐' : s.icon}</i>${s.name}<small>${lock ? '잠김' : pass ? '도장 받음' : p >= PRAC ? '⏱️ 도전!' : '연습 ' + p + ' / ' + PRAC}</small></button>`; }).join('');
   const on = $('#tstages .on'); if (on) on.scrollIntoView({ block: 'nearest', inline: 'center' });
   $('#tstampbtn').innerHTML = `🏅 도장판 <b>${stamps()}</b>/${TSTAGES.length}`;
 }
 const needKey = () => { const s = TY.item && TY.item.slots[TY.si]; return s ? KEYOF[s.keys[TY.ki]] || null : null; };
 function tyCombo(){
   const el = $('#tcombo');
+  if (TY.ch) { // 도장 도전 중: 남은 시간 막대
+    const c = TY.ch, ms = Math.max(0, c.end - Date.now()), left = Math.ceil(ms / 1000), st = TSTAGES[TY.st];
+    el.className = 'tcombo tch' + (left <= 10 ? ' hurry' : '');
+    el.innerHTML = `⏱️ <b>${left}초</b><span class="tbar"><i style="width:${(ms / (c.dur * 1000) * 100).toFixed(1)}%"></i></span><span>${c.got} / ${c.goal} ${st.u}</span>`;
+    return;
+  }
   el.className = 'tcombo' + (TY.mult > 1 ? ' hot' : '');
-  el.innerHTML = TY.mult > 1 ? `🔥 ${TY.combo + (TY.busy ? 0 : 1)}연속${TY.busy ? '!' : ' 도전!'} 동전 2배` : TY.combo ? `🔥 ${TY.combo}연속 안 틀렸어요! ${3 - TY.combo}번 더 하면 동전 2배` : '안 틀리고 3번 연속 맞히면 🔥 동전 2배';
+  el.innerHTML = TY.mult > 1 ? `🔥 ${TY.combo + (TY.busy ? 0 : 1)}연속${TY.busy ? '!' : ' 도전!'} 동전 2배` : TY.combo ? `🔥 ${TY.combo}연속 안 틀렸어요! ${5 - TY.combo}번 더 하면 동전 2배` : '안 틀리고 5번 연속 맞히면 🔥 동전 2배';
 }
 function tyPaint(){
   const st = TSTAGES[TY.st], it = TY.item;
@@ -3584,7 +3617,10 @@ function tyPaint(){
     : `<span class="tile${i < TY.si ? ' done' : i === TY.si ? ' cur' + (TY.ki ? ' typing' : '') : ''}">${esc(i === TY.si && TY.ki ? s.disp[TY.ki - 1] : s.ch)}</span>`).join('');
   const p = CARD.prog[st.id] || 0, earn = st.kind === 'keys' ? `글쇠 하나에 ${won(st.per)}` : st.per ? `글자 하나에 ${won(st.per)}${st.item ? ` · 다 치면 +${won(st.item)}` : ''}` : `번호 하나에 ${won(st.item)}`;
   const wk = weakTop();
-  $('#tinfo').innerHTML = `<div>${st.icon} <b>${st.name}</b> · ${esc(st.tip)}</div><div><span class="tearn">${earn}</span>${st.kind !== 'keys' ? ' · 안 틀리면 +100원' : ''}<span class="tdots">${Array.from({ length: NEED }, (_, i) => `<i class="${i < p ? 'on' : ''}"></i>`).join('')}</span></div>`
+  const chal = CARD.pass[st.id] ? `<div class="tchal ok">⭐ 도장 받았어요! 여기서 계속 연습해도 돈이 모여요</div>`
+    : TY.ch ? '' : p < PRAC ? `<div class="tchal">연습<span class="tdots">${Array.from({ length: PRAC }, (_, i) => `<i class="${i < p ? 'on' : ''}"></i>`).join('')}</span> ${PRAC - p}번 더 하면 ⏱️ 도장 도전!</div>`
+    : `<div class="tchal"><button id="tchbtn">⏱️ 도장 도전 · ${st.dur || 60}초에 ${st.goal}${st.u === '글쇠' || st.u === '글자' ? '' : '개'} ${st.u}</button> <small>Enter 키로도 시작</small></div>`;
+  $('#tinfo').innerHTML = `<div>${st.icon} <b>${st.name}</b> · ${esc(st.tip)}</div><div><span class="tearn">${earn}</span>${st.kind !== 'keys' ? ' · 안 틀리면 +30원' : ''}</div>${chal}`
     + (wk.length ? `<div class="tweak">💪 연습할 글쇠: ${wk.map(c => `<b>${esc(c)}</b>`).join(' ')} <small>(자주 틀려서 더 자주 나와요)</small></div>` : '');
   tyCombo(); tyHint(); tyKbd();
 }
@@ -3715,7 +3751,7 @@ function tyInput(code, sh){
   const kb = $(`#kbd [data-code="${code}"]`), slot = TY.item.slots[TY.si];
   if (!ok) {
     TY.miss++; sfx('buzz'); weakNote(slot.keys[TY.ki], true); cardSave(); handPress(code, false);
-    if (TY.combo || TY.mult > 1) { const was = TY.mult > 1; TY.combo = 0; TY.mult = 1; tyCombo(); if (was) { $('#tcombo').innerHTML = '💧 콤보가 끝났어요. 다시 3번 연속 도전!'; setTimeout(() => sfx('combooff'), 250); } }
+    if (TY.combo || TY.mult > 1) { const was = TY.mult > 1; TY.combo = 0; TY.mult = 1; tyCombo(); if (was) { $('#tcombo').innerHTML = '💧 콤보가 끝났어요. 다시 5번 연속 도전!'; setTimeout(() => sfx('combooff'), 250); } }
     tyHint(true); tyKbd();
     if (kb) { kb.classList.remove('bad'); void kb.offsetWidth; kb.classList.add('bad'); setTimeout(() => kb.classList.remove('bad'), 450); }
     const t = $('#ttarget'); t.classList.remove('shake'); void t.offsetWidth; t.classList.add('shake');
@@ -3725,30 +3761,46 @@ function tyInput(code, sh){
   if (TY.ki >= slot.keys.length) { // 한 칸 완성
     const el = $('#ttarget').children[TY.si]; TY.si++; TY.ki = 0;
     if (slot.ch !== ' ') tyEarn(st.per, el);
+    if (TY.ch && !TY.ch.done && slot.ch !== ' ' && chUnit(st) === 'slot' && ++TY.ch.got >= TY.ch.goal) { TY.ch.done = true; TY.busy = true; tyPaint(); setTimeout(() => chEnd(true), 400); return; }
   }
   if (TY.si >= TY.item.slots.length) { // 문제 하나 끝
     TY.busy = true; tyPaint();
-    const bonus = (st.item || 0) + (st.kind !== 'keys' && !TY.miss ? 100 : 0);
+    const bonus = (st.item || 0) + (st.kind !== 'keys' && !TY.miss ? 30 : 0);
     if (!TY.miss) TY.combo++;
     const p = (CARD.prog[st.id] || 0) + 1; CARD.prog[st.id] = p; cardSave();
     setTimeout(() => { if (bonus) tyEarn(bonus, $('#ttarget')); sfx('yay'); tyCombo(); }, 250);
-    const stamped = p === NEED, gift = stamped && GIFTS.find(g => g.n === stamps());
-    if (stamped) {
-      setTimeout(() => {
-        sfx('stamp'); if (gift) setTimeout(() => sfx('gift'), 1100);
-        const nx = TSTAGES[TY.st + 1];
-        toast(`🏅 「${st.name}」 도장을 받았어요!${nx ? ` 「${nx.name}」이 열렸어요` : ''}${gift ? ` 🎁 새 선물: ${gift.name}!` : ''}`);
-      }, 700);
-    }
-    tyStages(); setTimeout(() => { if (gift) tyView('stamp'); else tyNew(); }, stamped ? 2400 : 1100);
+    if (TY.ch && !TY.ch.done && chUnit(st) === 'item' && ++TY.ch.got >= TY.ch.goal) { TY.ch.done = true; tyCombo(); setTimeout(() => chEnd(true), 600); return; }
+    if (!TY.ch && p === PRAC && !CARD.pass[st.id]) setTimeout(() => { toast('⏱️ 연습 끝! 「도장 도전」을 눌러 봐요 (Enter 키도 돼요)'); sfx('pop'); }, 500);
+    tyStages(); setTimeout(() => tyNew(), 1100);
     return;
   }
   tyPaint();
 }
 function tick1(){ sfx('key'); }
 
+// 도장 도전: 정해진 시간 안에 목표만큼 맞혀야 도장을 받고 다음 단계가 열린다
+function chStart(){
+  const st = TSTAGES[TY.st];
+  if (!TY.open || TY.ch || TY.view !== 'type' || CARD.pass[st.id] || (CARD.prog[st.id] || 0) < PRAC) return;
+  const dur = st.dur || 60; TY.ch = { end: Date.now() + dur * 1000, dur, got: 0, goal: st.goal, done: false };
+  TY.ch.timer = setInterval(() => { if (!TY.ch || TY.ch.done) return; if (Date.now() >= TY.ch.end) chEnd(false); else tyCombo(); }, 200);
+  sfx('combo'); toast(`⏱️ 시작! ${dur}초 안에 ${st.goal} ${st.u}`); tyNew();
+}
+function chStop(){ if (TY.ch) { clearInterval(TY.ch.timer); TY.ch = null; } }
+function chEnd(ok){
+  const st = TSTAGES[TY.st], c = TY.ch; if (!c) return; chStop();
+  if (!ok) { sfx('combooff'); toast(`⏰ 시간 끝! ${c.got} / ${c.goal} ${st.u} · 아깝다! 조금 더 연습하고 다시 도전해요`); tyPaint(); return; }
+  CARD.pass[st.id] = true; cardSave();
+  const gift = GIFTS.find(g => g.n === stamps()), nx = TSTAGES[TY.st + 1];
+  sfx('stamp'); if (gift) setTimeout(() => sfx('gift'), 1100);
+  toast(`🏅 「${st.name}」 도장 도전 성공! ${nx ? ` 「${nx.name}」 단계가 열렸어요` : ''}${gift ? ` 🎁 새 선물: ${gift.name}!` : ''}`);
+  TY.busy = true; tyStages(); tyCombo();
+  setTimeout(() => { tyNew(); if (gift) tyView('stamp'); }, 2400);
+}
+
 // 도장판: 단계마다 도장, 도장 수에 따라 선물
 function tyView(v){
+  if (v === 'stamp') chStop();
   TY.view = v; $('#typing').classList.toggle('stampview', v === 'stamp');
   if (v === 'stamp') tyStampPaint(); else if (TY.item && !TY.busy) tyPaint();
   tyStages();
@@ -3761,8 +3813,8 @@ function tyStampPaint(){
   $('#tstamp').innerHTML = `<p class="stot">지금까지 타자로 모은 돈 <b>${won(CARD.total)}</b> · 도장 <b>${n}</b>개</p><h4>🎁 도장을 모으면 열리는 선물</h4>
     <div class="gifts">${GIFTS.map(g => { const open = n >= g.n;
       return `<div class="gift${open ? ' open' : ''}"><span class="gi">${open ? g.icon : '🔒'}</span><div><b>${g.name}</b><small>${open ? '골라 보세요' : `도장 ${g.n}개 (지금 ${n}개)`}</small></div><div class="sws">${open ? g.opts.map(o => sw(g, o)).join('') : ''}</div></div>`; }).join('')}</div>
-    <h4>🏅 단계 도장</h4><div class="sgrid">${TSTAGES.map((s, i) => { const p = CARD.prog[s.id] || 0, got = p >= NEED;
-      return `<div class="stamp${got ? ' got' : ''}" style="--r:${(i * 37) % 24 - 12}deg"><i>${s.icon}</i><b>${s.name}</b><small>${got ? '부천 · 참 잘했어요' : Math.min(p, NEED) + ' / ' + NEED}</small></div>`; }).join('')}</div>`;
+    <h4>🏅 단계 도장 <small>(⏱️ 도장 도전을 통과하면 찍혀요)</small></h4><div class="sgrid">${TSTAGES.map((s, i) => { const got = !!CARD.pass[s.id];
+      return `<div class="stamp${got ? ' got' : ''}" style="--r:${(i * 37) % 24 - 12}deg"><i>${s.icon}</i><b>${s.name}</b><small>${got ? '부천 · 참 잘했어요' : unlocked(i) ? `${s.dur || 60}초에 ${s.goal}` : '잠김'}</small></div>`; }).join('')}</div>`;
 }
 $('#tstamp').addEventListener('click', e => {
   const b = e.target.closest('[data-look]'); if (!b) return;
@@ -3785,12 +3837,13 @@ function tyOpen(){
   cardPaint(); tyView('type'); tyNew(true); // 열 때는 읽어 주지 않는다
   handStart();
 }
-function tyClose(){ TY.open = false; $('#typing').hidden = true; document.querySelector('.app').classList.remove('typing-on'); if (window.speechSynthesis && SND.on) speechSynthesis.cancel(); }
+function tyClose(){ chStop(); TY.open = false; $('#typing').hidden = true; document.querySelector('.app').classList.remove('typing-on'); if (window.speechSynthesis && SND.on) speechSynthesis.cancel(); }
 $('#cardbtn').onclick = () => TY.open ? tyClose() : tyOpen();
 $('#tclose').onclick = tyClose;
 $('#tsound').onclick = () => { $('#zsound').click(); };
 $('#tstampbtn').onclick = () => tyView(TY.view === 'stamp' ? 'type' : 'stamp');
 $('#tstages').addEventListener('click', e => { const b = e.target.closest('[data-st]'); if (b) tyStage(+b.dataset.st); });
+$('#tinfo').addEventListener('click', e => { if (e.target.closest('#tchbtn')) { actx(); chStart(); } });
 // 화면 자판은 보기만 한다: 눌러도 입력되지 않고 「블루투스 키보드로 쳐요」 안내 (타자 연습이 되게)
 $('#kbd').addEventListener('pointerdown', e => {
   e.preventDefault(); actx(); sfx('buzz');
@@ -3804,6 +3857,7 @@ addEventListener('keydown', e => {
   if (e.key === 'Escape') { if (TY.view === 'stamp') tyView('type'); else tyClose(); return; }
   if (e.key === 'Shift') { TY.phys = true; tyKbd(); return; }
   if (e.key === 'Tab') return;
+  if (e.key === 'Enter') { e.preventDefault(); chStart(); return; }
   e.preventDefault(); if (e.repeat || e.isComposing && !DUB[e.code]) return;
   const k = DUB[e.code] ? { code: e.code, sh: e.shiftKey } : codeOfKey(e.key);
   if (k) tyInput(k.code, e.shiftKey || k.sh);

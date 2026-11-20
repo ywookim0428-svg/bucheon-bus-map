@@ -3443,9 +3443,10 @@ function cardPaint(){
   const t = $('#tbal'); if (t) { t.textContent = won(CARD.bal); $('#ttot').textContent = won(CARD.total); t.parentNode.style.background = bg; }
 }
 const TRANSFER_MS = 30 * 60000;
-function fareOf(id){ // 지후 요금: 일반·마을버스 830원, 좌석·직행좌석·광역 1,000원, 지하철 500원. 30분 안에 갈아타면 차액만
+const FARE = { train: 550, village: 830, bus: 830, seat: 1000 }; // 어린이 교통카드 요금: 수도권 지하철 550원(2025.6~), 부천 마을버스 830원(2026.7~), 일반 시내버스 830원, 좌석·광역 1,000원
+function fareOf(id){ // 지후 요금. 30분 안에 갈아타면 차액만
   const v = vehOf(id); if (!v) return null;
-  const fare = v.kind === 'train' ? 500 : /좌석|광역|공항/.test(v.b.r.type) ? 1000 : 830;
+  const fare = v.kind === 'train' ? FARE.train : v.b.r.type === '마을' ? FARE.village : /좌석|광역|공항/.test(v.b.r.type) ? FARE.seat : FARE.bus;
   const tr = !!(JIHU.ride || CARD.last && CARD.offT >= CARD.last.t && Date.now() - CARD.offT < TRANSFER_MS);
   return { fare, tr, pay: tr ? Math.max(0, fare - (CARD.last ? CARD.last.fare : 0)) : fare };
 }

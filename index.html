@@ -301,7 +301,14 @@ canvas.drag{cursor:grabbing}
 .shop .goods{display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:8px}
 .shop .goods button{border:1px solid var(--line);background:var(--soft);border-radius:12px;padding:8px 4px;display:flex;flex-direction:column;align-items:center;gap:2px;font-family:inherit;color:var(--ink)}
 .shop .goods i{font-style:normal;font-size:28px;line-height:1.1}.shop .goods b{font-size:12px}.shop .goods span{font-size:12px;color:#c98a00;font-weight:800}
-.shop .goods button.poor span{color:#e8503a}.shop .goods button:disabled{opacity:.45}
+.shop .goods button.poor span{color:#e8503a}
+.jstat{border-color:#3d8bfd}
+.jbar{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:800}.jbar span{width:72px;flex:none}.jbar b{width:30px;text-align:right}
+.jbar div{flex:1;height:14px;border-radius:7px;background:var(--line);overflow:hidden}.jbar i{display:block;height:100%;border-radius:7px;transition:width .4s}
+.jbar.hp i{background:#2bb673}.jbar.joy i{background:#ffb300}.jbar.low i{background:#e8503a}.jbar.low b{color:#e8503a}
+.jstat .jmood{font-weight:800}.jstat .jbag{text-align:left;font-weight:800}
+.jstat .goods span{color:#137a40;font-size:11px}
+.jgo{border:0;background:#1f9d55;color:#fff;font-weight:800;border-radius:999px;padding:8px 14px;font-family:inherit;align-self:center}.shop .goods button:disabled{opacity:.45}
 .follow .x{border:0;background:var(--soft);border-radius:8px;width:28px;height:28px;font-size:14px;font-weight:800;flex:none}
 .follow .nx{display:grid;grid-template-columns:1fr auto;gap:2px 10px;align-items:baseline;font-size:12px}
 .follow .nx span{color:var(--muted)}
@@ -358,6 +365,7 @@ canvas.drag{cursor:grabbing}
     <div class="tip" id="tip" hidden></div>
   </div>
   <section class="shop" id="shop" hidden aria-label="편의점"></section>
+  <section class="shop jstat" id="jstat" hidden aria-label="지후 상태"></section>
   <section class="typing" id="typing" hidden aria-label="타자 충전소">
     <div class="th"><b>⌨️ 타자 충전소</b><span class="tbal" title="지금까지 모은 돈은 도장판에">💳 <b id="tbal">0원</b></span><button class="tstampbtn" id="tstampbtn">🏅 도장판</button><button class="x" id="tsound" aria-label="소리">🔊</button><button class="x" id="tclose" aria-label="충전소 닫기">✕</button></div>
     <div class="th2"><span class="ttot">지금까지 모은 돈 <b id="ttot">0원</b></span></div>
@@ -3276,6 +3284,7 @@ function famBoard(list, id){
   const v = vehOf(id); if (!list.length) return;
   if (!v) { toast('버스 위치를 다시 받는 중이에요. 잠깐 뒤에 다시 눌러 주세요'); return; }
   const beep = payFare(id, list); if (beep === null) return; // 탈 사람 요금은 모두 지후 교통카드에서
+  if (list.includes(JIHU) && !JIHU.ride) setTimeout(() => jsChange(-3, 2), 0); // 타고 다니면 힘은 조금 들고 신난다
   for (const m of list) { m.ride = id; m.off = false; m.lost = 0; m.text = ''; }
   famSay(list[0], list.length > 1 ? '다 같이 출발~!' : '출발~!'); // 말풍선은 한 사람만 (겹치지 않게)
   sfx('yay');
@@ -3355,7 +3364,7 @@ $('#zjihu').onclick = () => {
   else { userMoved = true; flyTo(m.x, m.y, Math.max(V.k, 0.6)); famSay(m, '여기야 여기!'); sfx('pop'); toast(`${m.emo} ${m.top || m.name + '는'} ${m.where}에 있어요. 버스나 열차를 눌러 태워 보세요`); }
 };
 famBtn();
-function famTap(m){ famSay(m, m.hi[Math.floor(Math.random() * m.hi.length)]); sfx('pop'); say(m.key === 'jihu' ? '안녕! 버스나 열차를 눌러서 나를 태워 줘' : m.home ? m.hi[0] : `${m.name}도 같이 갈래! 버스나 열차를 눌러서 태워 줘`); }
+function famTap(m){ if (m === JIHU) jsOpen(); famSay(m, m.hi[Math.floor(Math.random() * m.hi.length)]); sfx('pop'); say(m.key === 'jihu' ? '안녕! 버스나 열차를 눌러서 나를 태워 줘' : m.home ? m.hi[0] : `${m.name}도 같이 갈래! 버스나 열차를 눌러서 태워 줘`); }
 function famFace(g, m, bx, by, sz){ // 탔을 때 동그라미 안 얼굴
   g.fillStyle = '#fff'; g.beginPath(); g.arc(bx, by, sz * 0.82, 0, 7); g.fill(); g.strokeStyle = m.ring; g.lineWidth = 2.5; g.stroke();
   if (m.long) { g.fillStyle = m.hair; rrect(g, bx - sz * 0.6, by - sz * 0.25, sz * 1.2, sz * 0.75, sz * 0.25); g.fill(); }
@@ -3502,17 +3511,18 @@ function payFare(id, list = [JIHU]){ // 탈 사람들 요금을 지후 카드에
 // 편의점: 지후가 편의점 바로 앞에 걸어와 있을 때(버스에서 내린 상태) 교통카드 돈으로 사 먹는다
 const SHOP_NEAR = 450; // m
 const GOODS = [
-  { id: 'pocari', emo: '🥤', name: '포카리스웨트', price: 2500, say: '캬~ 시원하다!' },
-  { id: 'banana', emo: '🍌', name: '바나나우유', price: 1800, say: '달콤해~' },
-  { id: 'choco', emo: '🍫', name: '초코우유', price: 1500, say: '초코 최고!' },
-  { id: 'water', emo: '💧', name: '생수', price: 900, say: '꿀꺽꿀꺽!' },
-  { id: 'kimbap', emo: '🍙', name: '삼각김밥', price: 1500, say: '배부르다!' },
-  { id: 'ramen', emo: '🍜', name: '컵라면', price: 1500, say: '후루룩~!' },
-  { id: 'icecream', emo: '🍦', name: '아이스크림', price: 1500, say: '차가워~ 맛있어!' },
-  { id: 'jelly', emo: '🍬', name: '젤리', price: 1200, say: '쫀득쫀득!' },
-  { id: 'snack', emo: '🍿', name: '과자', price: 1700, say: '바삭바삭!' },
-  { id: 'sausage', emo: '🌭', name: '소시지', price: 1500, say: '냠냠!' },
+  { id: 'pocari', emo: '🥤', name: '포카리스웨트', price: 2500, say: '캬~ 시원하다!', hp: 25, joy: 15 },
+  { id: 'banana', emo: '🍌', name: '바나나우유', price: 1800, say: '달콤해~', hp: 15, joy: 20 },
+  { id: 'choco', emo: '🍫', name: '초코우유', price: 1500, say: '초코 최고!', hp: 12, joy: 20 },
+  { id: 'water', emo: '💧', name: '생수', price: 900, say: '꿀꺽꿀꺽!', hp: 10, joy: 5 },
+  { id: 'kimbap', emo: '🍙', name: '삼각김밥', price: 1500, say: '배부르다!', hp: 30, joy: 10 },
+  { id: 'ramen', emo: '🍜', name: '컵라면', price: 1500, say: '후루룩~!', hp: 30, joy: 15 },
+  { id: 'icecream', emo: '🍦', name: '아이스크림', price: 1500, say: '차가워~ 맛있어!', hp: 5, joy: 25 },
+  { id: 'jelly', emo: '🍬', name: '젤리', price: 1200, say: '쫀득쫀득!', hp: 3, joy: 20 },
+  { id: 'snack', emo: '🍿', name: '과자', price: 1700, say: '바삭바삭!', hp: 5, joy: 20 },
+  { id: 'sausage', emo: '🌭', name: '소시지', price: 1500, say: '냠냠!', hp: 15, joy: 12 },
 ];
+const bagCount = () => Object.values(CARD.bag || {}).reduce((a, n) => a + n, 0);
 const shopNear = () => !JIHU.ride && Math.hypot(JIHU.x - SHOP[2], JIHU.y - SHOP[3]) < SHOP_NEAR;
 function shopPaint(){
   const el = $('#shop'); if (el.hidden) return;
@@ -3521,9 +3531,10 @@ function shopPaint(){
   el.innerHTML = `<div class="sh"><b>🏪 옥길 편의점</b><span class="sbal">💳 ${won(CARD.bal)}</span><button class="x" id="shopx" aria-label="편의점 닫기">✕</button></div>
     ${near ? '<p class="sok">지후가 편의점에 왔어요! 먹고 싶은 걸 눌러요</p>' : `<p class="sno">${why}</p>`}
     <div class="goods">${GOODS.map(g => `<button data-buy="${g.id}"${near ? '' : ' disabled'} class="${CARD.bal < g.price ? 'poor' : ''}"><i>${g.emo}</i><b>${g.name}</b><span>${won(g.price)}</span></button>`).join('')}</div>
+    ${bagCount() ? `<p class="sate">🎒 지후 가방: ${GOODS.filter(g => (CARD.bag || {})[g.id]).map(g => `${g.emo}×${CARD.bag[g.id]}`).join(' ')} · 지후를 눌러서 먹어요</p>` : ''}
     ${eaten.length ? `<p class="sate">지금까지 먹은 것: ${eaten.map(g => `${g.emo}×${ate[g.id]}`).join(' ')}</p>` : ''}`;
 }
-function shopOpen(){ actx(); $('#shop').hidden = false; shopPaint(); if (!shopNear()) flyTo(SHOP[2], SHOP[3], Math.max(V.k, 0.6)); }
+function shopOpen(){ actx(); jsClose(); $('#shop').hidden = false; shopPaint(); if (!shopNear()) flyTo(SHOP[2], SHOP[3], Math.max(V.k, 0.6)); }
 function shopClose(){ $('#shop').hidden = true; }
 function shopBuy(id){
   const g = GOODS.find(x => x.id === id); if (!g || !shopNear()) { shopPaint(); return; }
@@ -3532,15 +3543,52 @@ function shopBuy(id){
     toast(`💳 돈이 모자라요! ${g.name}${eun} ${won(g.price)}, 지금 ${won(CARD.bal)}. 타자를 쳐서 모아요`); famSay(JIHU, '돈이 모자라…');
     const b = $('#cardbtn'); b.classList.remove('need'); void b.offsetWidth; b.classList.add('need'); return;
   }
-  CARD.bal -= g.price; CARD.ate = CARD.ate || {}; CARD.ate[g.id] = (CARD.ate[g.id] || 0) + 1; cardSave(); cardPaint();
-  sfx('card'); setTimeout(() => sfx('yay'), 250); famSay(JIHU, `${g.emo} ${g.say}`);
-  toast(`${g.emo} ${g.name} 샀어요! ${won(g.price)} · 남은 돈 ${won(CARD.bal)}`); shopPaint();
+  CARD.bal -= g.price; CARD.bag = CARD.bag || {}; CARD.bag[g.id] = (CARD.bag[g.id] || 0) + 1; cardSave(); cardPaint();
+  sfx('card'); setTimeout(() => sfx('pop'), 250); famSay(JIHU, `${g.emo} 가방에 쏙!`);
+  toast(`${g.emo} ${g.name} 샀어요! ${won(g.price)} · 가방에 넣었어요. 지후를 눌러서 먹어요`); shopPaint(); jsPaint();
 }
 $('#shop').addEventListener('click', e => {
   if (e.target.closest('#shopx')) return shopClose();
   const b = e.target.closest('[data-buy]'); if (b && !b.disabled) shopBuy(b.dataset.buy);
 });
 setInterval(() => { if (!$('#shop').hidden) shopPaint(); }, 1500); // 지후가 걸어오거나 버스에서 내리면 바로 살 수 있게
+
+// 지후 상태: 체력·만족감 (0~100). 시간이 지나면 조금씩 줄고, 버스·열차를 타면 체력이 조금 든다. 가방의 간식을 먹으면 오른다
+if (!isFinite(CARD.hp)) CARD.hp = 70; if (!isFinite(CARD.joy)) CARD.joy = 60; if (!CARD.bag) CARD.bag = {};
+{ const away = CARD.vt ? (Date.now() - CARD.vt) / 60000 : 0; // 꺼 둔 동안: 1분에 0.3씩, 많아야 25까지만
+  const d = Math.min(25, away * 0.3); CARD.hp = Math.max(0, CARD.hp - d); CARD.joy = Math.max(0, CARD.joy - d * 0.8); CARD.vt = Date.now(); }
+function jsChange(dh, dj){
+  const was = CARD.hp; CARD.hp = Math.max(0, Math.min(100, CARD.hp + dh)); CARD.joy = Math.max(0, Math.min(100, CARD.joy + dj)); CARD.vt = Date.now(); cardSave();
+  if (was >= 20 && CARD.hp < 20) { famSay(JIHU, '배고파… 간식 먹고 싶어'); toast('🧒 지후가 배고파해요! 지후를 눌러 간식을 먹이거나 🏪 편의점에 가요'); }
+  jsPaint();
+}
+setInterval(() => { if (!document.hidden) jsChange(-1, -0.7); }, 60000); // 1분마다 체력 1, 만족감 0.7씩 준다
+const jsMood = () => CARD.hp < 20 ? '😫 배고파요… 뭐 좀 먹고 싶어요' : CARD.joy < 25 ? '😐 심심해요… 맛있는 거 먹고 싶다' : CARD.hp > 75 && CARD.joy > 75 ? '😆 기분 최고! 힘이 넘쳐요' : '🙂 괜찮아요! 어디 놀러 갈까?';
+function jsBar(label, v, cls){ return `<div class="jbar ${cls}"><span>${label}</span><div><i style="width:${Math.round(v)}%"></i></div><b>${Math.round(v)}</b></div>`; }
+function jsPaint(){
+  const el = $('#jstat'); if (!el || el.hidden) return;
+  const has = GOODS.filter(g => CARD.bag[g.id]);
+  el.innerHTML = `<div class="sh"><b>🧒 지후</b><span class="sbal">💳 ${won(CARD.bal)}</span><button class="x" id="jsx" aria-label="닫기">✕</button></div>
+    ${jsBar('❤️ 체력', CARD.hp, CARD.hp < 20 ? 'hp low' : 'hp')}${jsBar('😊 만족감', CARD.joy, CARD.joy < 25 ? 'joy low' : 'joy')}
+    <p class="jmood">${jsMood()}</p>
+    <p class="jbag">🎒 가방 ${has.length ? '· 눌러서 먹어요' : ''}</p>
+    ${has.length ? `<div class="goods">${has.map(g => `<button data-eat="${g.id}"><i>${g.emo}</i><b>${g.name} ×${CARD.bag[g.id]}</b><span>❤️+${g.hp} 😊+${g.joy}</span></button>`).join('')}</div>`
+      : `<p class="sno">가방이 비었어요. 🏪 편의점에서 간식을 사 와요</p><button class="jgo" id="jsshop">🏪 편의점 보러 가기</button>`}`;
+}
+function jsOpen(){ actx(); shopClose(); $('#jstat').hidden = false; jsPaint(); }
+function jsClose(){ const el = $('#jstat'); if (el) el.hidden = true; }
+function jsEat(id){
+  const g = GOODS.find(x => x.id === id); if (!g || !CARD.bag[g.id]) return;
+  CARD.bag[g.id]--; if (!CARD.bag[g.id]) delete CARD.bag[g.id];
+  CARD.ate = CARD.ate || {}; CARD.ate[g.id] = (CARD.ate[g.id] || 0) + 1;
+  sfx('yay'); famSay(JIHU, `${g.emo} ${g.say}`); toast(`${g.emo} ${g.name} 냠냠! ❤️ 체력 +${g.hp} · 😊 만족감 +${g.joy}`);
+  jsChange(g.hp, g.joy); shopPaint();
+}
+$('#jstat').addEventListener('click', e => {
+  if (e.target.closest('#jsx')) return jsClose();
+  if (e.target.closest('#jsshop')) return shopOpen();
+  const b = e.target.closest('[data-eat]'); if (b) jsEat(b.dataset.eat);
+});
 
 // 두벌식 자판: 자판 위치 → 글자(Shift 글자)
 const DUB = { KeyQ: 'ㅂㅃ', KeyW: 'ㅈㅉ', KeyE: 'ㄷㄸ', KeyR: 'ㄱㄲ', KeyT: 'ㅅㅆ', KeyY: 'ㅛ', KeyU: 'ㅕ', KeyI: 'ㅑ', KeyO: 'ㅐㅒ', KeyP: 'ㅔㅖ',
